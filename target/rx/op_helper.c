@@ -201,14 +201,14 @@ void helper_scmpu(CPURXState *env)
     if (env->regs[3] == 0) {
         return;
     }
-    do {
+    while (env->regs[3] != 0) {
         tmp0 = cpu_ldub_data_ra(env, env->regs[1]++, GETPC());
         tmp1 = cpu_ldub_data_ra(env, env->regs[2]++, GETPC());
         env->regs[3]--;
         if (tmp0 != tmp1 || tmp0 == '\0') {
             break;
         }
-    } while (env->regs[3] != 0);
+    }
     env->psw_z = tmp0 - tmp1;
     env->psw_c = (tmp0 >= tmp1);
 }
@@ -287,14 +287,14 @@ void helper_suntil(CPURXState *env, uint32_t sz)
     if (env->regs[3] == 0) {
         return ;
     }
-    do {
+    while (env->regs[3] != 0) {
         tmp = cpu_ldufn[sz](env, env->regs[1], GETPC());
         env->regs[1] += 1 << sz;
         env->regs[3]--;
         if (tmp == env->regs[2]) {
             break;
         }
-    } while (env->regs[3] != 0);
+    }
     env->psw_z = tmp - env->regs[2];
     env->psw_c = (tmp <= env->regs[2]);
 }
@@ -306,19 +306,19 @@ void helper_swhile(CPURXState *env, uint32_t sz)
     if (env->regs[3] == 0) {
         return ;
     }
-    do {
+    while (env->regs[3] != 0) {
         tmp = cpu_ldufn[sz](env, env->regs[1], GETPC());
         env->regs[1] += 1 << sz;
         env->regs[3]--;
         if (tmp != env->regs[2]) {
             break;
         }
-    } while (env->regs[3] != 0);
+    }
     env->psw_z = env->regs[3];
     env->psw_c = (tmp <= env->regs[2]);
 }
 
-/* accumulator operations */
+/* accumlator operations */
 void helper_rmpa(CPURXState *env, uint32_t sz)
 {
     uint64_t result_l, prev;
@@ -421,7 +421,7 @@ uint32_t helper_divu(CPURXState *env, uint32_t num, uint32_t den)
 static inline void QEMU_NORETURN raise_exception(CPURXState *env, int index,
                                                  uintptr_t retaddr)
 {
-    CPUState *cs = env_cpu(env);
+    CPUState *cs = CPU(rx_env_get_cpu(env));
 
     cs->exception_index = index;
     cpu_loop_exit_restore(cs, retaddr);
@@ -444,11 +444,19 @@ void QEMU_NORETURN helper_raise_illegal_instruction(CPURXState *env)
 
 void QEMU_NORETURN helper_wait(CPURXState *env)
 {
-    CPUState *cs = env_cpu(env);
+    CPUState *cs = CPU(rx_env_get_cpu(env));
 
     cs->halted = 1;
     env->in_sleep = 1;
     raise_exception(env, EXCP_HLT, 0);
+}
+
+void QEMU_NORETURN helper_debug(CPURXState *env)
+{
+    CPUState *cs = CPU(rx_env_get_cpu(env));
+
+    cs->exception_index = EXCP_DEBUG;
+    cpu_loop_exit(cs);
 }
 
 void QEMU_NORETURN helper_rxint(CPURXState *env, uint32_t vec)
@@ -459,4 +467,15 @@ void QEMU_NORETURN helper_rxint(CPURXState *env, uint32_t vec)
 void QEMU_NORETURN helper_rxbrk(CPURXState *env)
 {
     raise_exception(env, 0x100, 0);
+}
+
+void tlb_fill(CPUState *cs, target_ulong addr, int size,
+              MMUAccessType access_type, int mmu_idx, uintptr_t retaddr)
+{
+    uint32_t address, physical, prot;
+
+    /* Linear mapping */
+    address = physical = addr & TARGET_PAGE_MASK;
+    prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
+    tlb_set_page(cs, address, physical, prot, mmu_idx, TARGET_PAGE_SIZE);
 }

@@ -21,7 +21,7 @@
 #include "cpu.h"
 #include "exec/log.h"
 #include "exec/cpu_ldst.h"
-#include "hw/irq.h"
+#include "sysemu/sysemu.h"
 
 void rx_cpu_unpack_psw(CPURXState *env, uint32_t psw, int rte)
 {
@@ -40,12 +40,10 @@ void rx_cpu_unpack_psw(CPURXState *env, uint32_t psw, int rte)
     env->psw_c = FIELD_EX32(psw, PSW, C);
 }
 
-#ifndef CONFIG_USER_ONLY
-
 #define INT_FLAGS (CPU_INTERRUPT_HARD | CPU_INTERRUPT_FIR)
 void rx_cpu_do_interrupt(CPUState *cs)
 {
-    RXCPU *cpu = RX_CPU(cs);
+    RXCPU *cpu = RXCPU(cs);
     CPURXState *env = &cpu->env;
     int do_irq = cs->interrupt_request & INT_FLAGS;
     uint32_t save_psw;
@@ -71,10 +69,10 @@ void rx_cpu_do_interrupt(CPUState *cs)
             qemu_log_mask(CPU_LOG_INT, "fast interrupt raised\n");
         } else if (do_irq & CPU_INTERRUPT_HARD) {
             env->isp -= 4;
-            cpu_stl_data(env, env->isp, save_psw);
+            cpu_stl_all(env, env->isp, save_psw);
             env->isp -= 4;
-            cpu_stl_data(env, env->isp, env->pc);
-            env->pc = cpu_ldl_data(env, env->intb + env->ack_irq * 4);
+            cpu_stl_all(env, env->isp, env->pc);
+            env->pc = cpu_ldl_all(env, env->intb + env->ack_irq * 4);
             env->psw_ipl = env->ack_ipl;
             cs->interrupt_request &= ~CPU_INTERRUPT_HARD;
             qemu_set_irq(env->ack, env->ack_irq);
@@ -86,18 +84,18 @@ void rx_cpu_do_interrupt(CPUState *cs)
         const char *expname = "unknown exception";
 
         env->isp -= 4;
-        cpu_stl_data(env, env->isp, save_psw);
+        cpu_stl_all(env, env->isp, save_psw);
         env->isp -= 4;
-        cpu_stl_data(env, env->isp, env->pc);
+        cpu_stl_all(env, env->isp, env->pc);
 
         if (vec < 0x100) {
-            env->pc = cpu_ldl_data(env, 0xffffffc0 + vec * 4);
+            env->pc = cpu_ldl_all(env, 0xffffffc0 + vec * 4);
         } else {
-            env->pc = cpu_ldl_data(env, env->intb + (vec & 0xff) * 4);
+            env->pc = cpu_ldl_all(env, env->intb + (vec & 0xff) * 4);
         }
         switch (vec) {
         case 20:
-            expname = "privilege violation";
+            expname = "previlege violation";
             break;
         case 21:
             expname = "access exception";
@@ -109,7 +107,7 @@ void rx_cpu_do_interrupt(CPUState *cs)
             expname = "fpu exception";
             break;
         case 30:
-            expname = "non-maskable interrupt";
+            expname = "NMI";
             break;
         case 0x100 ... 0x1ff:
             expname = "unconditional trap";
@@ -122,7 +120,7 @@ void rx_cpu_do_interrupt(CPUState *cs)
 
 bool rx_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 {
-    RXCPU *cpu = RX_CPU(cs);
+    RXCPU *cpu = RXCPU(cs);
     CPURXState *env = &cpu->env;
     int accept = 0;
     /* hardware interrupt (Normal) */
@@ -143,8 +141,6 @@ bool rx_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
     }
     return false;
 }
-
-#endif /* !CONFIG_USER_ONLY */
 
 hwaddr rx_cpu_get_phys_page_debug(CPUState *cs, vaddr addr)
 {
