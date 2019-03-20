@@ -55,32 +55,5 @@ config S390_FLIC_KVM
 config OMPIC
     bool
 
-config PPC_UIC
-    bool
-
-config SH_INTC
-    bool
-
 config RX_ICU
-    bool
-
-config LOONGSON_LIOINTC
-    bool
-
-config RISCV_ACLINT
-    bool
-
-config RISCV_APLIC
-    bool
-
-config RISCV_IMSIC
-    bool
-
-config SIFIVE_PLIC
-    bool
-
-config GOLDFISH_PIC
-    bool
-
-config M68K_IRQC
     bool

@@ -4,12 +4,19 @@
  * Warning: Only ICUa is supported.
  *
  * Datasheet: RX62N Group, RX621 Group User's Manual: Hardware
+<<<<<<< HEAD
  *            (Rev.1.40 R01UH0033EJ0140)
  *
  * Copyright (c) 2019 Yoshinori Sato
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
+=======
+ * (Rev.1.40 R01UH0033EJ0140)
+ *
+ * Copyright (c) 2019 Yoshinori Sato
+ *
+>>>>>>> 1b2b740e88 (hw/intc: RX62N interrupt controller (ICUa))
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
  * version 2 or later, as published by the Free Software Foundation.
@@ -24,13 +31,15 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu-common.h"
 #include "qemu/log.h"
-#include "qemu/error-report.h"
-#include "hw/irq.h"
+#include "qapi/error.h"
+#include "cpu.h"
+#include "hw/hw.h"
+#include "hw/sysbus.h"
 #include "hw/registerfields.h"
-#include "hw/qdev-properties.h"
 #include "hw/intc/rx_icu.h"
-#include "migration/vmstate.h"
+#include "qemu/error-report.h"
 
 REG8(IR, 0)
   FIELD(IR, IR,  0, 1)
@@ -40,7 +49,7 @@ REG8(IER, 0x200)
 REG8(SWINTR, 0x2e0)
   FIELD(SWINTR, SWINT, 0, 1)
 REG16(FIR, 0x2f0)
-  FIELD(FIR, FVCT, 0,  8)
+  FIELD(FIR, FVCT, 0, 8)
   FIELD(FIR, FIEN, 15, 1)
 REG8(IPR, 0x300)
   FIELD(IPR, IPR, 0, 4)
@@ -61,6 +70,8 @@ REG8(NMICLR, 0x582)
 REG8(NMICR, 0x583)
   FIELD(NMICR, NMIMD, 3, 1)
 
+#define request(icu, n) (icu->ipr[icu->map[n]] << 8 | n)
+
 static void set_irq(RXICUState *icu, int n_IRQ, int req)
 {
     if ((icu->fir & R_FIR_FIEN_MASK) &&
@@ -71,19 +82,14 @@ static void set_irq(RXICUState *icu, int n_IRQ, int req)
     }
 }
 
-static uint16_t rxicu_level(RXICUState *icu, unsigned n)
-{
-    return (icu->ipr[icu->map[n]] << 8) | n;
-}
-
 static void rxicu_request(RXICUState *icu, int n_IRQ)
 {
     int enable;
 
     enable = icu->ier[n_IRQ / 8] & (1 << (n_IRQ & 7));
-    if (n_IRQ > 0 && enable != 0 && qatomic_read(&icu->req_irq) < 0) {
-        qatomic_set(&icu->req_irq, n_IRQ);
-        set_irq(icu, n_IRQ, rxicu_level(icu, n_IRQ));
+    if (n_IRQ > 0 && enable != 0 && atomic_read(&icu->req_irq) < 0) {
+        atomic_set(&icu->req_irq, n_IRQ);
+        set_irq(icu, n_IRQ, request(icu, n_IRQ));
     }
 }
 
@@ -124,10 +130,10 @@ static void rxicu_set_irq(void *opaque, int n_IRQ, int level)
     }
     if (issue == 0 && src->sense == TRG_LEVEL) {
         icu->ir[n_IRQ] = 0;
-        if (qatomic_read(&icu->req_irq) == n_IRQ) {
+        if (atomic_read(&icu->req_irq) == n_IRQ) {
             /* clear request */
             set_irq(icu, n_IRQ, 0);
-            qatomic_set(&icu->req_irq, -1);
+            atomic_set(&icu->req_irq, -1);
         }
         return;
     }
@@ -144,11 +150,11 @@ static void rxicu_ack_irq(void *opaque, int no, int level)
     int n_IRQ;
     int max_pri;
 
-    n_IRQ = qatomic_read(&icu->req_irq);
+    n_IRQ = atomic_read(&icu->req_irq);
     if (n_IRQ < 0) {
         return;
     }
-    qatomic_set(&icu->req_irq, -1);
+    atomic_set(&icu->req_irq, -1);
     if (icu->src[n_IRQ].sense != TRG_LEVEL) {
         icu->ir[n_IRQ] = 0;
     }
@@ -177,8 +183,7 @@ static uint64_t icu_read(void *opaque, hwaddr addr, unsigned size)
     if ((addr != A_FIR && size != 1) ||
         (addr == A_FIR && size != 2)) {
         qemu_log_mask(LOG_GUEST_ERROR, "rx_icu: Invalid read size 0x%"
-                                       HWADDR_PRIX "\n",
-                      addr);
+                      HWADDR_PRIX "\n", addr);
         return UINT64_MAX;
     }
     switch (addr) {
@@ -209,9 +214,8 @@ static uint64_t icu_read(void *opaque, hwaddr addr, unsigned size)
     case A_NMICR:
         return icu->nmicr;
     default:
-        qemu_log_mask(LOG_UNIMP, "rx_icu: Register 0x%" HWADDR_PRIX " "
-                                 "not implemented.\n",
-                      addr);
+        qemu_log_mask(LOG_UNIMP, "rx_icu: Register 0x%" HWADDR_PRIX
+                      " not implemented.\n", addr);
         break;
     }
     return UINT64_MAX;
@@ -224,9 +228,8 @@ static void icu_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
 
     if ((addr != A_FIR && size != 1) ||
         (addr == A_FIR && size != 2)) {
-        qemu_log_mask(LOG_GUEST_ERROR, "rx_icu: Invalid write size at "
-                                       "0x%" HWADDR_PRIX "\n",
-                      addr);
+        qemu_log_mask(LOG_GUEST_ERROR, "rx_icu: Invalid write size at 0x%"
+                      HWADDR_PRIX "\n", addr);
         return;
     }
     switch (addr) {
@@ -237,7 +240,8 @@ static void icu_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
         break;
     case A_DTCER ... A_DTCER + 0xff:
         icu->dtcer[reg] = val & R_DTCER_DTCE_MASK;
-        qemu_log_mask(LOG_UNIMP, "rx_icu: DTC not implemented\n");
+        qemu_log_mask(LOG_UNIMP,
+                      "rx_icu: DTC not implemented\n");
         break;
     case A_IER ... A_IER + 0x1f:
         icu->ier[reg] = val;
@@ -258,7 +262,8 @@ static void icu_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
     case A_DMRSR + 8:
     case A_DMRSR + 12:
         icu->dmasr[reg >> 2] = val;
-        qemu_log_mask(LOG_UNIMP, "rx_icu: DMAC not implemented\n");
+        qemu_log_mask(LOG_UNIMP,
+                      "rx_icu: DMAC not implemented\n");
         break;
     case A_IRQCR ... A_IRQCR + 0x1f:
         icu->src[64 + reg].sense = val >> R_IRQCR_IRQMD_SHIFT;
@@ -269,16 +274,15 @@ static void icu_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
         icu->nmier |= val & (R_NMIER_NMIEN_MASK |
                              R_NMIER_LVDEN_MASK |
                              R_NMIER_OSTEN_MASK);
-        break;
+            break;
     case A_NMICR:
         if ((icu->nmier & R_NMIER_NMIEN_MASK) == 0) {
             icu->nmicr = val & R_NMICR_NMIMD_MASK;
         }
         break;
     default:
-        qemu_log_mask(LOG_UNIMP, "rx_icu: Register 0x%" HWADDR_PRIX " "
-                                 "not implemented\n",
-                      addr);
+        qemu_log_mask(LOG_UNIMP, "rx_icu: Register 0x%" HWADDR_PRIX
+                      " not implemented\n", addr);
         break;
     }
 }
@@ -288,32 +292,29 @@ static const MemoryRegionOps icu_ops = {
     .read  = icu_read,
     .endianness = DEVICE_LITTLE_ENDIAN,
     .impl = {
-        .min_access_size = 1,
-        .max_access_size = 2,
-    },
-    .valid = {
-        .min_access_size = 1,
         .max_access_size = 2,
     },
 };
 
 static void rxicu_realize(DeviceState *dev, Error **errp)
 {
-    RXICUState *icu = RX_ICU(dev);
-    int i;
+    RXICUState *icu = RXICU(dev);
+    int i, j;
 
     if (icu->init_sense == NULL) {
         qemu_log_mask(LOG_GUEST_ERROR,
                       "rx_icu: trigger-level property must be set.");
         return;
     }
-
-    for (i = 0; i < NR_IRQS; i++) {
-        icu->src[i].sense = TRG_PEDGE;
-    }
-    for (i = 0; i < icu->nr_sense; i++) {
-        uint8_t irqno = icu->init_sense[i];
-        icu->src[irqno].sense = TRG_LEVEL;
+    for (i = j = 0; i < NR_IRQS; i++) {
+        if (icu->init_sense[j] == i) {
+            icu->src[i].sense = TRG_LEVEL;
+            if (j < icu->nr_sense) {
+                j++;
+            }
+        } else {
+            icu->src[i].sense = TRG_PEDGE;
+        }
     }
     icu->req_irq = -1;
 }
@@ -321,7 +322,7 @@ static void rxicu_realize(DeviceState *dev, Error **errp)
 static void rxicu_init(Object *obj)
 {
     SysBusDevice *d = SYS_BUS_DEVICE(obj);
-    RXICUState *icu = RX_ICU(obj);
+    RXICUState *icu = RXICU(obj);
 
     memory_region_init_io(&icu->memory, OBJECT(icu), &icu_ops,
                           icu, "rx-icu", 0x600);
@@ -336,7 +337,7 @@ static void rxicu_init(Object *obj)
 
 static void rxicu_fini(Object *obj)
 {
-    RXICUState *icu = RX_ICU(obj);
+    RXICUState *icu = RXICU(obj);
     g_free(icu->map);
     g_free(icu->init_sense);
 }
@@ -346,26 +347,15 @@ static const VMStateDescription vmstate_rxicu = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields = (VMStateField[]) {
-        VMSTATE_UINT8_ARRAY(ir, RXICUState, NR_IRQS),
-        VMSTATE_UINT8_ARRAY(dtcer, RXICUState, NR_IRQS),
-        VMSTATE_UINT8_ARRAY(ier, RXICUState, NR_IRQS / 8),
-        VMSTATE_UINT8_ARRAY(ipr, RXICUState, 142),
-        VMSTATE_UINT8_ARRAY(dmasr, RXICUState, 4),
-        VMSTATE_UINT16(fir, RXICUState),
-        VMSTATE_UINT8(nmisr, RXICUState),
-        VMSTATE_UINT8(nmier, RXICUState),
-        VMSTATE_UINT8(nmiclr, RXICUState),
-        VMSTATE_UINT8(nmicr, RXICUState),
-        VMSTATE_INT16(req_irq, RXICUState),
         VMSTATE_END_OF_LIST()
     }
 };
 
 static Property rxicu_properties[] = {
     DEFINE_PROP_ARRAY("ipr-map", RXICUState, nr_irqs, map,
-                      qdev_prop_uint8, uint8_t),
+                      qdev_prop_uint32, uint32_t),
     DEFINE_PROP_ARRAY("trigger-level", RXICUState, nr_sense, init_sense,
-                      qdev_prop_uint8, uint8_t),
+                      qdev_prop_uint32, uint32_t),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -374,13 +364,13 @@ static void rxicu_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->realize = rxicu_realize;
+    dc->props = rxicu_properties;
     dc->vmsd = &vmstate_rxicu;
-    device_class_set_props(dc, rxicu_properties);
 }
 
 static const TypeInfo rxicu_info = {
-    .name = TYPE_RX_ICU,
-    .parent = TYPE_SYS_BUS_DEVICE,
+    .name       = TYPE_RXICU,
+    .parent     = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(RXICUState),
     .instance_init = rxicu_init,
     .instance_finalize = rxicu_fini,
