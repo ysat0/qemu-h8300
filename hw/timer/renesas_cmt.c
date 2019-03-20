@@ -2,11 +2,9 @@
  * Renesas 16bit Compare-match timer
  *
  * Datasheet: RX62N Group, RX621 Group User's Manual: Hardware
- *            (Rev.1.40 R01UH0033EJ0140)
+ * (Rev.1.40 R01UH0033EJ0140)
  *
  * Copyright (c) 2019 Yoshinori Sato
- *
- * SPDX-License-Identifier: GPL-2.0-or-later
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -22,12 +20,16 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu-common.h"
 #include "qemu/log.h"
-#include "hw/irq.h"
+#include "qapi/error.h"
+#include "qemu/timer.h"
+#include "cpu.h"
+#include "hw/hw.h"
+#include "hw/sysbus.h"
 #include "hw/registerfields.h"
-#include "hw/qdev-properties.h"
 #include "hw/timer/renesas_cmt.h"
-#include "migration/vmstate.h"
+#include "qemu/error-report.h"
 
 /*
  *  +0 CMSTR - common control
@@ -46,67 +48,50 @@ REG16(CMSTR, 0)
   FIELD(CMSTR, STR,  0, 2)
 /* This addeess is channel offset */
 REG16(CMCR, 0)
-  FIELD(CMCR, CKS,  0, 2)
+  FIELD(CMCR, CKS, 0, 2)
   FIELD(CMCR, CMIE, 6, 1)
 REG16(CMCNT, 2)
 REG16(CMCOR, 4)
 
-static void update_events(RCMTState *cmt, int ch)
+static void update_events(struct RCMTChannelState *c)
 {
     int64_t next_time;
 
-    if ((cmt->cmstr & (1 << ch)) == 0) {
-        /* count disable, so not happened next event. */
-        return ;
-    }
-    next_time = cmt->cmcor[ch] - cmt->cmcnt[ch];
-    next_time *= NANOSECONDS_PER_SECOND;
-    next_time /= cmt->input_freq;
-    /*
-     * CKS -> div rate
-     *  0 -> 8 (1 << 3)
-     *  1 -> 32 (1 << 5)
-     *  2 -> 128 (1 << 7)
-     *  3 -> 512 (1 << 9)
-     */
-    next_time *= 1 << (3 + FIELD_EX16(cmt->cmcr[ch], CMCR, CKS) * 2);
+    next_time = c->clk_per_ns * (c->cmcor - c->cmcnt);
     next_time += qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
-    timer_mod(&cmt->timer[ch], next_time);
+    timer_mod(c->timer, next_time);
 }
 
-static int64_t read_cmcnt(RCMTState *cmt, int ch)
+static int64_t read_cmcnt(struct RCMTChannelState *c)
 {
-    int64_t delta, now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+    int64_t delta = 0;
+    int64_t now;
 
-    if (cmt->cmstr & (1 << ch)) {
-        delta = (now - cmt->tick[ch]);
-        delta /= NANOSECONDS_PER_SECOND;
-        delta /= cmt->input_freq;
-        delta /= 1 << (3 + FIELD_EX16(cmt->cmcr[ch], CMCR, CKS) * 2);
-        cmt->tick[ch] = now;
-        return cmt->cmcnt[ch] + delta;
-    } else {
-        return cmt->cmcnt[ch];
+    if (c->start) {
+        now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+        delta = (now - c->tick) / c->clk_per_ns;
+        c->tick = now;
     }
+    return c->cmcnt + delta;
 }
 
-static uint64_t cmt_read(void *opaque, hwaddr offset, unsigned size)
+static uint64_t cmt_read(void *opaque, hwaddr addr, unsigned size)
 {
     RCMTState *cmt = opaque;
-    int ch = offset / 0x08;
+    int ch = addr / 0x08;
     uint64_t ret;
 
-    if (offset == A_CMSTR) {
+    if (addr == A_CMSTR) {
         ret = 0;
         ret = FIELD_DP16(ret, CMSTR, STR,
                          FIELD_EX16(cmt->cmstr, CMSTR, STR));
         return ret;
     } else {
-        offset &= 0x07;
+        addr &= 0x07;
         if (ch == 0) {
-            offset -= 0x02;
+            addr -= 0x02;
         }
-        switch (offset) {
+        switch (addr) {
         case A_CMCR:
             ret = 0;
             ret = FIELD_DP16(ret, CMCR, CKS,
@@ -115,61 +100,72 @@ static uint64_t cmt_read(void *opaque, hwaddr offset, unsigned size)
                              FIELD_EX16(cmt->cmstr, CMCR, CMIE));
             return ret;
         case A_CMCNT:
-            return read_cmcnt(cmt, ch);
+            return read_cmcnt(&cmt->c[ch]);
         case A_CMCOR:
-            return cmt->cmcor[ch];
+            return cmt->c[ch].cmcor;
         }
     }
-    qemu_log_mask(LOG_UNIMP, "renesas_cmt: Register 0x%" HWADDR_PRIX " "
-                             "not implemented\n",
-                  offset);
+    qemu_log_mask(LOG_UNIMP, "renesas_cmt: Register 0x%"
+                  HWADDR_PRIX " not implemented\n", addr);
     return UINT64_MAX;
 }
 
 static void start_stop(RCMTState *cmt, int ch, int st)
 {
     if (st) {
-        update_events(cmt, ch);
+        cmt->c[ch].start = true;
+        update_events(&cmt->c[ch]);
     } else {
-        timer_del(&cmt->timer[ch]);
+        cmt->c[ch].start = false;
+        timer_del(cmt->c[ch].timer);
     }
 }
 
-static void cmt_write(void *opaque, hwaddr offset, uint64_t val, unsigned size)
+static void cmt_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
 {
     RCMTState *cmt = opaque;
-    int ch = offset / 0x08;
+    int ch = addr / 0x08;
+    int div;
 
-    if (offset == A_CMSTR) {
+    if (addr == A_CMSTR) {
         cmt->cmstr = FIELD_EX16(val, CMSTR, STR);
         start_stop(cmt, 0, FIELD_EX16(cmt->cmstr, CMSTR, STR0));
         start_stop(cmt, 1, FIELD_EX16(cmt->cmstr, CMSTR, STR1));
     } else {
-        offset &= 0x07;
+        addr &= 0x07;
         if (ch == 0) {
-            offset -= 0x02;
+            addr -= 0x02;
         }
-        switch (offset) {
+        switch (addr) {
         case A_CMCR:
-            cmt->cmcr[ch] = FIELD_DP16(cmt->cmcr[ch], CMCR, CKS,
+            cmt->c[ch].cmcr = FIELD_DP16(cmt->c[ch].cmcr, CMCR, CKS,
                                        FIELD_EX16(val, CMCR, CKS));
-            cmt->cmcr[ch] = FIELD_DP16(cmt->cmcr[ch], CMCR, CMIE,
+            cmt->c[ch].cmcr = FIELD_DP16(cmt->c[ch].cmcr, CMCR, CMIE,
                                        FIELD_EX16(val, CMCR, CMIE));
+            /*
+             * CKS -> div rate
+             *  0 -> 8 (1 << 3)
+             *  1 -> 32 (1 << 5)
+             *  2 -> 128 (1 << 7)
+             *  3 -> 512 (1 << 9)
+             */
+            div = 1 << (3 + 2 * FIELD_EX16(cmt->c[ch].cmcr, CMCR, CKS));
+            cmt->c[ch].clk_per_ns = NANOSECONDS_PER_SECOND / cmt->input_freq;
+            cmt->c[ch].clk_per_ns *= div;
             break;
-        case 2:
-            cmt->cmcnt[ch] = val;
+        case A_CMCNT:
+            cmt->c[ch].cmcnt = val;
             break;
-        case 4:
-            cmt->cmcor[ch] = val;
+        case A_CMCOR:
+            cmt->c[ch].cmcor = val;
             break;
         default:
-            qemu_log_mask(LOG_UNIMP, "renesas_cmt: Register 0x%" HWADDR_PRIX " "
-                                     "not implemented\n",
-                          offset);
+            qemu_log_mask(LOG_UNIMP, "renesas_cmt: Register -0x%" HWADDR_PRIX
+                          " not implemented\n", addr);
             return;
         }
         if (FIELD_EX16(cmt->cmstr, CMSTR, STR) & (1 << ch)) {
-            update_events(cmt, ch);
+            update_events(&cmt->c[ch]);
         }
     }
 }
@@ -182,43 +178,28 @@ static const MemoryRegionOps cmt_ops = {
         .min_access_size = 2,
         .max_access_size = 2,
     },
-    .valid = {
-        .min_access_size = 2,
-        .max_access_size = 2,
-    },
 };
 
-static void timer_events(RCMTState *cmt, int ch)
+static void timer_event(void *opaque)
 {
-    cmt->cmcnt[ch] = 0;
-    cmt->tick[ch] = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
-    update_events(cmt, ch);
-    if (FIELD_EX16(cmt->cmcr[ch], CMCR, CMIE)) {
-        qemu_irq_pulse(cmt->cmi[ch]);
+    struct RCMTChannelState *c = opaque;
+
+    c->cmcnt = 0;
+    c->tick = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+    update_events(c);
+    if (FIELD_EX16(c->cmcr, CMCR, CMIE)) {
+        qemu_irq_pulse(c->cmi);
     }
-}
-
-static void timer_event0(void *opaque)
-{
-    RCMTState *cmt = opaque;
-
-    timer_events(cmt, 0);
-}
-
-static void timer_event1(void *opaque)
-{
-    RCMTState *cmt = opaque;
-
-    timer_events(cmt, 1);
 }
 
 static void rcmt_reset(DeviceState *dev)
 {
     RCMTState *cmt = RCMT(dev);
     cmt->cmstr = 0;
-    cmt->cmcr[0] = cmt->cmcr[1] = 0;
-    cmt->cmcnt[0] = cmt->cmcnt[1] = 0;
-    cmt->cmcor[0] = cmt->cmcor[1] = 0xffff;
+    cmt->c[0].start = cmt->c[1].start = false;
+    cmt->c[0].cmcr = cmt->c[1].cmcr = 0;
+    cmt->c[0].cmcnt = cmt->c[1].cmcnt = 0;
+    cmt->c[0].cmcor = cmt->c[1].cmcor = 0xffff;
 }
 
 static void rcmt_init(Object *obj)
@@ -231,11 +212,13 @@ static void rcmt_init(Object *obj)
                           cmt, "renesas-cmt", 0x10);
     sysbus_init_mmio(d, &cmt->memory);
 
-    for (i = 0; i < ARRAY_SIZE(cmt->cmi); i++) {
-        sysbus_init_irq(d, &cmt->cmi[i]);
+    for (i = 0; i < CMT_CH; i++) {
+        sysbus_init_irq(d, &cmt->c[i].cmi);
     }
-    timer_init_ns(&cmt->timer[0], QEMU_CLOCK_VIRTUAL, timer_event0, cmt);
-    timer_init_ns(&cmt->timer[1], QEMU_CLOCK_VIRTUAL, timer_event1, cmt);
+    cmt->c[0].timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                   timer_event, &cmt->c[0]);
+    cmt->c[1].timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                   timer_event, &cmt->c[1]);
 }
 
 static const VMStateDescription vmstate_rcmt = {
@@ -243,12 +226,6 @@ static const VMStateDescription vmstate_rcmt = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields = (VMStateField[]) {
-        VMSTATE_UINT16(cmstr, RCMTState),
-        VMSTATE_UINT16_ARRAY(cmcr, RCMTState, CMT_CH),
-        VMSTATE_UINT16_ARRAY(cmcnt, RCMTState, CMT_CH),
-        VMSTATE_UINT16_ARRAY(cmcor, RCMTState, CMT_CH),
-        VMSTATE_INT64_ARRAY(tick, RCMTState, CMT_CH),
-        VMSTATE_TIMER_ARRAY(timer, RCMTState, CMT_CH),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -262,14 +239,14 @@ static void rcmt_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
+    dc->props = rcmt_properties;
     dc->vmsd = &vmstate_rcmt;
     dc->reset = rcmt_reset;
-    device_class_set_props(dc, rcmt_properties);
 }
 
 static const TypeInfo rcmt_info = {
-    .name = TYPE_RENESAS_CMT,
-    .parent = TYPE_SYS_BUS_DEVICE,
+    .name       = TYPE_RENESAS_CMT,
+    .parent     = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(RCMTState),
     .instance_init = rcmt_init,
     .class_init = rcmt_class_init,

@@ -3,41 +3,42 @@
  *
  * Copyright (c) 2019 Yoshinori Sato
  *
- * SPDX-License-Identifier: GPL-2.0-or-later
+ * This code is licensed under the GPL version 2 or later.
+ *
  */
 
-#ifndef HW_TIMER_RENESAS_CMT_H
-#define HW_TIMER_RENESAS_CMT_H
+#ifndef HW_RENESAS_CMT_H
+#define HW_RENESAS_CMT_H
 
-#include "qemu/timer.h"
 #include "hw/sysbus.h"
-#include "qom/object.h"
 
 #define TYPE_RENESAS_CMT "renesas-cmt"
-typedef struct RCMTState RCMTState;
-DECLARE_INSTANCE_CHECKER(RCMTState, RCMT,
-                         TYPE_RENESAS_CMT)
+#define RCMT(obj) OBJECT_CHECK(RCMTState, (obj), TYPE_RENESAS_CMT)
 
 enum {
     CMT_CH = 2,
-    CMT_NR_IRQ = 1 * CMT_CH
 };
 
-struct RCMTState {
-    /*< private >*/
+struct RCMTChannelState {
+    uint16_t cmcr;
+    uint16_t cmcnt;
+    uint16_t cmcor;
+
+    bool start;
+    int64_t tick;
+    int64_t clk_per_ns;
+    qemu_irq cmi;
+    QEMUTimer *timer;
+};
+
+typedef struct RCMTState {
     SysBusDevice parent_obj;
-    /*< public >*/
 
     uint64_t input_freq;
     MemoryRegion memory;
 
     uint16_t cmstr;
-    uint16_t cmcr[CMT_CH];
-    uint16_t cmcnt[CMT_CH];
-    uint16_t cmcor[CMT_CH];
-    int64_t tick[CMT_CH];
-    qemu_irq cmi[CMT_CH];
-    QEMUTimer timer[CMT_CH];
-};
+    struct RCMTChannelState c[CMT_CH];
+} RCMTState;
 
 #endif

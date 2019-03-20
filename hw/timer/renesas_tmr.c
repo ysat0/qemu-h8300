@@ -2,11 +2,9 @@
  * Renesas 8bit timer
  *
  * Datasheet: RX62N Group, RX621 Group User's Manual: Hardware
- *            (Rev.1.40 R01UH0033EJ0140)
+ * (Rev.1.40 R01UH0033EJ0140)
  *
  * Copyright (c) 2019 Yoshinori Sato
- *
- * SPDX-License-Identifier: GPL-2.0-or-later
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -22,44 +20,43 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu-common.h"
 #include "qemu/log.h"
-#include "hw/irq.h"
+#include "qapi/error.h"
+#include "qemu/timer.h"
+#include "qemu/bitops.h"
+#include "cpu.h"
+#include "hw/hw.h"
+#include "hw/sysbus.h"
 #include "hw/registerfields.h"
-#include "hw/qdev-properties.h"
 #include "hw/timer/renesas_tmr.h"
-#include "migration/vmstate.h"
+#include "qemu/error-report.h"
 
 REG8(TCR, 0)
-  FIELD(TCR, CCLR,  3, 2)
-  FIELD(TCR, OVIE,  5, 1)
+  FIELD(TCR, CCLR, 3, 2)
+  FIELD(TCR, OVIE, 5, 1)
   FIELD(TCR, CMIEA, 6, 1)
   FIELD(TCR, CMIEB, 7, 1)
 REG8(TCSR, 2)
-  FIELD(TCSR, OSA,  0, 2)
-  FIELD(TCSR, OSB,  2, 2)
+  FIELD(TCSR, OSA, 0, 2)
+  FIELD(TCSR, OSB, 2, 2)
   FIELD(TCSR, ADTE, 4, 2)
 REG8(TCORA, 4)
 REG8(TCORB, 6)
 REG8(TCNT, 8)
 REG8(TCCR, 10)
-  FIELD(TCCR, CKS,   0, 3)
-  FIELD(TCCR, CSS,   3, 2)
+  FIELD(TCCR, CKS, 0, 3)
+  FIELD(TCCR, CSS, 3, 2)
   FIELD(TCCR, TMRIS, 7, 1)
 
-#define CSS_EXTERNAL  0x00
-#define CSS_INTERNAL  0x01
-#define CSS_INVALID   0x02
-#define CSS_CASCADING 0x03
+#define INTERNAL  0x01
+#define CASCADING 0x03
 #define CCLR_A    0x01
 #define CCLR_B    0x02
 
 static const int clkdiv[] = {0, 1, 2, 8, 32, 64, 1024, 8192};
 
-static uint8_t concat_reg(uint8_t *reg)
-{
-    return (reg[0] << 8) | reg[1];
-}
-
+#define concat_reg(reg) ((reg[0] << 8) | reg[1])
 static void update_events(RTMRState *tmr, int ch)
 {
     uint16_t diff[TMR_NR_EVENTS], min;
@@ -74,7 +71,7 @@ static void update_events(RTMRState *tmr, int ch)
         /* event not happened */
         return ;
     }
-    if (FIELD_EX8(tmr->tccr[0], TCCR, CSS) == CSS_CASCADING) {
+    if (FIELD_EX8(tmr->tccr[0], TCCR, CSS) == CASCADING) {
         /* cascading mode */
         if (ch == 1) {
             tmr->next[ch] = none;
@@ -102,10 +99,11 @@ static void update_events(RTMRState *tmr, int ch)
     next_time *= NANOSECONDS_PER_SECOND;
     next_time /= tmr->input_freq;
     next_time += qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
-    timer_mod(&tmr->timer[ch], next_time);
+    timer_mod(tmr->timer[ch], next_time);
 }
 
-static int elapsed_time(RTMRState *tmr, int ch, int64_t delta)
+
+static inline int elapsed_time(RTMRState *tmr, int ch, int64_t delta)
 {
     int divrate = clkdiv[FIELD_EX8(tmr->tccr[ch], TCCR, CKS)];
     int et;
@@ -120,7 +118,6 @@ static int elapsed_time(RTMRState *tmr, int ch, int64_t delta)
     }
     return et;
 }
-
 static uint16_t read_tcnt(RTMRState *tmr, unsigned size, int ch)
 {
     int64_t delta, now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
@@ -132,37 +129,24 @@ static uint16_t read_tcnt(RTMRState *tmr, unsigned size, int ch)
     if (delta > 0) {
         tmr->tick = now;
 
-        switch (FIELD_EX8(tmr->tccr[1], TCCR, CSS)) {
-        case CSS_INTERNAL:
+        if (FIELD_EX8(tmr->tccr[1], TCCR, CSS) == INTERNAL) {
             /* timer1 count update */
             elapsed = elapsed_time(tmr, 1, delta);
             if (elapsed >= 0x100) {
                 ovf = elapsed >> 8;
             }
             tcnt[1] = tmr->tcnt[1] + (elapsed & 0xff);
-            break;
-        case CSS_INVALID: /* guest error to have set this */
-        case CSS_EXTERNAL: /* QEMU doesn't implement these */
-        case CSS_CASCADING:
-            tcnt[1] = tmr->tcnt[1];
-            break;
-        default:
-            g_assert_not_reached();
         }
         switch (FIELD_EX8(tmr->tccr[0], TCCR, CSS)) {
-        case CSS_INTERNAL:
+        case INTERNAL:
             elapsed = elapsed_time(tmr, 0, delta);
             tcnt[0] = tmr->tcnt[0] + elapsed;
             break;
-        case CSS_CASCADING:
-            tcnt[0] = tmr->tcnt[0] + ovf;
+        case CASCADING:
+            if (ovf > 0) {
+                tcnt[0] = tmr->tcnt[0] + ovf;
+            }
             break;
-        case CSS_INVALID: /* guest error to have set this */
-        case CSS_EXTERNAL: /* QEMU doesn't implement this */
-            tcnt[0] = tmr->tcnt[0];
-            break;
-        default:
-            g_assert_not_reached();
         }
     } else {
         tcnt[0] = tmr->tcnt[0];
@@ -178,7 +162,7 @@ static uint16_t read_tcnt(RTMRState *tmr, unsigned size, int ch)
     }
 }
 
-static uint8_t read_tccr(uint8_t r)
+static inline uint8_t read_tccr(uint8_t r)
 {
     uint8_t tccr = 0;
     tccr = FIELD_DP8(tccr, TCCR, TMRIS,
@@ -198,8 +182,7 @@ static uint64_t tmr_read(void *opaque, hwaddr addr, unsigned size)
 
     if (size == 2 && (ch != 0 || addr == A_TCR || addr == A_TCSR)) {
         qemu_log_mask(LOG_GUEST_ERROR, "renesas_tmr: Invalid read size 0x%"
-                                       HWADDR_PRIX "\n",
-                      addr);
+                      HWADDR_PRIX "\n", addr);
         return UINT64_MAX;
     }
     switch (addr & 0x0e) {
@@ -236,7 +219,6 @@ static uint64_t tmr_read(void *opaque, hwaddr addr, unsigned size)
         } else if (ch == 0) {
             return concat_reg(tmr->tcora);
         }
-        /* fall through */
     case A_TCORB:
         if (size == 1) {
             return tmr->tcorb[ch];
@@ -253,26 +235,24 @@ static uint64_t tmr_read(void *opaque, hwaddr addr, unsigned size)
         }
     default:
         qemu_log_mask(LOG_UNIMP, "renesas_tmr: Register 0x%" HWADDR_PRIX
-                                 " not implemented\n",
-                      addr);
+                      " not implemented\n", addr);
         break;
     }
     return UINT64_MAX;
 }
 
-static void tmr_write_count(RTMRState *tmr, int ch, unsigned size,
-                            uint8_t *reg, uint64_t val)
-{
-    if (size == 1) {
-        reg[ch] = val;
-        update_events(tmr, ch);
-    } else {
-        reg[0] = extract32(val, 8, 8);
-        reg[1] = extract32(val, 0, 8);
-        update_events(tmr, 0);
-        update_events(tmr, 1);
-    }
-}
+#define COUNT_WRITE(reg, val)                   \
+    do {                                        \
+        if (size == 1) {                        \
+            tmr->reg[ch] = val;                 \
+            update_events(tmr, ch);             \
+        } else {                                \
+            tmr->reg[0] = extract32(val, 8, 8); \
+            tmr->reg[1] = extract32(val, 0, 8); \
+            update_events(tmr, 0);              \
+            update_events(tmr, 1);              \
+        }                                       \
+    } while (0)
 
 static void tmr_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
 {
@@ -281,8 +261,8 @@ static void tmr_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
 
     if (size == 2 && (ch != 0 || addr == A_TCR || addr == A_TCSR)) {
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "renesas_tmr: Invalid write size 0x%" HWADDR_PRIX "\n",
-                      addr);
+                      "renesas_tmr: Invalid write size 0x%" HWADDR_PRIX
+                      "\n", addr);
         return;
     }
     switch (addr & 0x0e) {
@@ -293,21 +273,20 @@ static void tmr_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
         tmr->tcsr[ch] = val;
         break;
     case A_TCORA:
-        tmr_write_count(tmr, ch, size, tmr->tcora, val);
+        COUNT_WRITE(tcora, val);
         break;
     case A_TCORB:
-        tmr_write_count(tmr, ch, size, tmr->tcorb, val);
+        COUNT_WRITE(tcorb, val);
         break;
     case A_TCNT:
-        tmr_write_count(tmr, ch, size, tmr->tcnt, val);
+        COUNT_WRITE(tcnt, val);
         break;
     case A_TCCR:
-        tmr_write_count(tmr, ch, size, tmr->tccr, val);
+        COUNT_WRITE(tccr, val);
         break;
     default:
         qemu_log_mask(LOG_UNIMP, "renesas_tmr: Register 0x%" HWADDR_PRIX
-                                 " not implemented\n",
-                      addr);
+                      " not implemented\n", addr);
         break;
     }
 }
@@ -317,10 +296,6 @@ static const MemoryRegionOps tmr_ops = {
     .read  = tmr_read,
     .endianness = DEVICE_LITTLE_ENDIAN,
     .impl = {
-        .min_access_size = 1,
-        .max_access_size = 2,
-    },
-    .valid = {
         .min_access_size = 1,
         .max_access_size = 2,
     },
@@ -345,7 +320,7 @@ static uint16_t issue_event(RTMRState *tmr, int ch, int sz,
                 qemu_irq_pulse(tmr->cmia[ch]);
             }
             if (sz == 8 && ch == 0 &&
-                FIELD_EX8(tmr->tccr[1], TCCR, CSS) == CSS_CASCADING) {
+                FIELD_EX8(tmr->tccr[1], TCCR, CSS) == CASCADING) {
                 tmr->tcnt[1]++;
                 timer_events(tmr, 1);
             }
@@ -375,13 +350,11 @@ static uint16_t issue_event(RTMRState *tmr, int ch, int sz,
 static void timer_events(RTMRState *tmr, int ch)
 {
     uint16_t tcnt;
-
     tmr->tcnt[ch] = read_tcnt(tmr, 1, ch);
-    if (FIELD_EX8(tmr->tccr[0], TCCR, CSS) != CSS_CASCADING) {
+    if (FIELD_EX8(tmr->tccr[0], TCCR, CSS) != CASCADING) {
         tmr->tcnt[ch] = issue_event(tmr, ch, 8,
                                     tmr->tcnt[ch],
-                                    tmr->tcora[ch],
-                                    tmr->tcorb[ch]) & 0xff;
+                                    tmr->tcora[ch], tmr->tcorb[ch]) & 0xff;
     } else {
         if (ch == 1) {
             return ;
@@ -439,8 +412,8 @@ static void rtmr_init(Object *obj)
         sysbus_init_irq(d, &tmr->cmib[i]);
         sysbus_init_irq(d, &tmr->ovi[i]);
     }
-    timer_init_ns(&tmr->timer[0], QEMU_CLOCK_VIRTUAL, timer_event0, tmr);
-    timer_init_ns(&tmr->timer[1], QEMU_CLOCK_VIRTUAL, timer_event1, tmr);
+    tmr->timer[0] = timer_new_ns(QEMU_CLOCK_VIRTUAL, timer_event0, tmr);
+    tmr->timer[1] = timer_new_ns(QEMU_CLOCK_VIRTUAL, timer_event1, tmr);
 }
 
 static const VMStateDescription vmstate_rtmr = {
@@ -448,17 +421,6 @@ static const VMStateDescription vmstate_rtmr = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields = (VMStateField[]) {
-        VMSTATE_INT64(tick, RTMRState),
-        VMSTATE_UINT8_ARRAY(tcnt, RTMRState, TMR_CH),
-        VMSTATE_UINT8_ARRAY(tcora, RTMRState, TMR_CH),
-        VMSTATE_UINT8_ARRAY(tcorb, RTMRState, TMR_CH),
-        VMSTATE_UINT8_ARRAY(tcr, RTMRState, TMR_CH),
-        VMSTATE_UINT8_ARRAY(tccr, RTMRState, TMR_CH),
-        VMSTATE_UINT8_ARRAY(tcor, RTMRState, TMR_CH),
-        VMSTATE_UINT8_ARRAY(tcsr, RTMRState, TMR_CH),
-        VMSTATE_INT64_ARRAY(div_round, RTMRState, TMR_CH),
-        VMSTATE_UINT8_ARRAY(next, RTMRState, TMR_CH),
-        VMSTATE_TIMER_ARRAY(timer, RTMRState, TMR_CH),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -472,14 +434,14 @@ static void rtmr_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
+    dc->props = rtmr_properties;
     dc->vmsd = &vmstate_rtmr;
     dc->reset = rtmr_reset;
-    device_class_set_props(dc, rtmr_properties);
 }
 
 static const TypeInfo rtmr_info = {
-    .name = TYPE_RENESAS_TMR,
-    .parent = TYPE_SYS_BUS_DEVICE,
+    .name       = TYPE_RENESAS_TMR,
+    .parent     = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(RTMRState),
     .instance_init = rtmr_init,
     .class_init = rtmr_class_init,
