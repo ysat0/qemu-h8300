@@ -20,10 +20,45 @@
 #define RX_CPU_H
 
 #include "qemu/bitops.h"
+#include "qemu-common.h"
 #include "hw/registerfields.h"
-#include "cpu-qom.h"
+#include "qom/cpu.h"
+
+#define TYPE_RXCPU "rxcpu"
+
+#define RXCPU_CLASS(klass)                                     \
+    OBJECT_CLASS_CHECK(RXCPUClass, (klass), TYPE_RXCPU)
+#define RXCPU(obj) \
+    OBJECT_CHECK(RXCPU, (obj), TYPE_RXCPU)
+#define RXCPU_GET_CLASS(obj) \
+    OBJECT_GET_CLASS(RXCPUClass, (obj), TYPE_RXCPU)
+
+/*
+ * RXCPUClass:
+ * @parent_realize: The parent class' realize handler.
+ * @parent_reset: The parent class' reset handler.
+ *
+ * A RX CPU model.
+ */
+typedef struct RXCPUClass {
+    /*< private >*/
+    CPUClass parent_class;
+    /*< public >*/
+
+    DeviceRealize parent_realize;
+    void (*parent_reset)(CPUState *cpu);
+
+} RXCPUClass;
+
+#define TARGET_LONG_BITS 32
+#define TARGET_PAGE_BITS 12
+
+#define CPUArchState struct CPURXState
 
 #include "exec/cpu-defs.h"
+
+#define TARGET_PHYS_ADDR_SPACE_BITS 32
+#define TARGET_VIRT_ADDR_SPACE_BITS 32
 
 /* PSW define */
 REG32(PSW, 0)
@@ -61,11 +96,14 @@ FIELD(FPSW, FX, 30, 1)
 FIELD(FPSW, FLAGS, 26, 4)
 FIELD(FPSW, FS, 31, 1)
 
+#define NB_MMU_MODES 1
+#define MMU_MODE0_SUFFIX _all
+
 enum {
     NUM_REGS = 16,
 };
 
-typedef struct CPUArchState {
+typedef struct CPURXState {
     /* CPU registers */
     uint32_t regs[NUM_REGS];    /* general registers */
     uint32_t psw_o;             /* O bit of status register */
@@ -96,7 +134,9 @@ typedef struct CPUArchState {
     uint32_t ack_irq;           /* execute irq */
     uint32_t ack_ipl;           /* execute ipl */
     float_status fp_status;
-    qemu_irq ack;               /* Interrupt acknowledge */
+    qemu_irq ack;		/* Interrupt acknowledge */
+
+    CPU_COMMON
 } CPURXState;
 
 /*
@@ -105,33 +145,48 @@ typedef struct CPUArchState {
  *
  * A RX CPU
  */
-struct ArchCPU {
+struct RXCPU {
     /*< private >*/
     CPUState parent_obj;
     /*< public >*/
 
-    CPUNegativeOffsetState neg;
     CPURXState env;
 };
 
-#define RX_CPU_TYPE_SUFFIX "-" TYPE_RX_CPU
-#define RX_CPU_TYPE_NAME(model) model RX_CPU_TYPE_SUFFIX
-#define CPU_RESOLVING_TYPE TYPE_RX_CPU
+typedef struct RXCPU RXCPU;
 
-const char *rx_crname(uint8_t cr);
-#ifndef CONFIG_USER_ONLY
+static inline RXCPU *rx_env_get_cpu(CPURXState *env)
+{
+    return container_of(env, RXCPU, env);
+}
+
+#define ENV_GET_CPU(e) CPU(rx_env_get_cpu(e))
+
+#define ENV_OFFSET offsetof(RXCPU, env)
+
+#define RX_CPU_TYPE_SUFFIX "-" TYPE_RXCPU
+#define RX_CPU_TYPE_NAME(model) model RX_CPU_TYPE_SUFFIX
+#define CPU_RESOLVING_TYPE TYPE_RXCPU
+
+extern const char rx_crname[][6];
+
 void rx_cpu_do_interrupt(CPUState *cpu);
 bool rx_cpu_exec_interrupt(CPUState *cpu, int int_req);
-#endif /* !CONFIG_USER_ONLY */
 void rx_cpu_dump_state(CPUState *cpu, FILE *f, int flags);
-int rx_cpu_gdb_read_register(CPUState *cpu, GByteArray *buf, int reg);
+int rx_cpu_gdb_read_register(CPUState *cpu, uint8_t *buf, int reg);
 int rx_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
 hwaddr rx_cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
 
 void rx_translate_init(void);
+int cpu_rx_signal_handler(int host_signum, void *pinfo,
+                           void *puc);
+
 void rx_cpu_list(void);
+void rx_load_image(RXCPU *cpu, const char *filename,
+                   uint32_t start, uint32_t size);
 void rx_cpu_unpack_psw(CPURXState *env, uint32_t psw, int rte);
 
+#define cpu_signal_handler cpu_rx_signal_handler
 #define cpu_list rx_cpu_list
 
 #include "exec/cpu-all.h"
