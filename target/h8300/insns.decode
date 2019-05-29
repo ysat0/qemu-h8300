@@ -1,3 +1,22 @@
+#
+# Renesas H8/300 instruction decode definitions.
+#
+# Copyright (c) 2019 Yoshinori Sato <ysato@users.sourceforge.jp>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, see <http://www.gnu.org/licenses/>.
+#
+
 &i		imm
 &ri		rd imm sz
 &rr		rs rd sz
@@ -323,9 +342,9 @@ LDCSTC_m	0000 0001 0100 0000 0111 1000 .... 0000 @b10_er24
 # LDC @ERs+,CCR
 LDC_mp		0000 0001 0100 0000 0110 1101 0... 0000 @b4_er
 # LDC @aa:16,CCR
-LDC_a16		0000 0001 0100 0000 0110 1011 0000 0000 @b6_abs16
+LDC_a		0000 0001 0100 0000 0110 1011 0000 0000 @b6_abs16
 # LDC @aa:24,CCR
-LDC_a24		0000 0001 0100 0000 0110 1011 0010 0000 @b8_abs24
+LDC_a		0000 0001 0100 0000 0110 1011 0010 0000 @b8_abs24
 # MOV.B #xx:8,Rd
 MOV_i		1111 .... .... .... @b2_r_imm
 # MOV.B Rs,Rd
