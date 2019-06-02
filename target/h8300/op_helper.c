@@ -24,9 +24,6 @@
 #include "exec/cpu_ldst.h"
 #include "fpu/softfloat.h"
 
-static inline void QEMU_NORETURN raise_exception(CPURXState *env, int index,
-                                                 uintptr_t retaddr);
-
 void helper_set_ccr(CPUH8300State *env, uint32_t ccr)
 {
     h8300_cpu_unpack_ccr(env, ccr);
@@ -34,7 +31,7 @@ void helper_set_ccr(CPUH8300State *env, uint32_t ccr)
 
 uint32_t helper_get_ccr(CPUH8300State *env)
 {
-    return h8300_cpu_pack_psw(env);
+    return h8300_cpu_pack_ccr(env);
 }
 
 /* div */
@@ -122,11 +119,11 @@ uint32_t helper_das(CPUH8300State *env, uint32_t num)
     }
 }
 
-static void helper_eepmovb(CPUH8300State *env)
+void helper_eepmovb(CPUH8300State *env)
 {
     int cnt;
     uint8_t tmp;
-    cnt = extracr32(cpu_regs[4], 0, 8);
+    cnt = extract32(env->regs[4], 0, 8);
     while(cnt > 0) {
         tmp = cpu_ldub_data_ra(env, env->regs[5], GETPC());
         cpu_stb_data_ra(env, env->regs[6], tmp, GETPC());
@@ -134,14 +131,14 @@ static void helper_eepmovb(CPUH8300State *env)
         env->regs[6]++;
         cnt--;
     }
-    cpu_regs[4] = deposit32(cpu_regs[4], cnt, 0, 8);
+    env->regs[4] = deposit32(env->regs[4], cnt, 0, 8);
 }
 
-static void helper_eepmovw(CPUH8300State *env)
+void helper_eepmovw(CPUH8300State *env)
 {
     int cnt;
     uint8_t tmp;
-    cnt = extracr32(cpu_regs[4], 0, 16);
+    cnt = extract32(env->regs[4], 0, 16);
     while(cnt > 0) {
         tmp = cpu_ldub_data_ra(env, env->regs[5], GETPC());
         cpu_stb_data_ra(env, env->regs[6], tmp, GETPC());
@@ -149,7 +146,29 @@ static void helper_eepmovw(CPUH8300State *env)
         env->regs[6]++;
         cnt--;
     }
-    cpu_regs[4] = deposit32(cpu_regs[4], cnt, 0, 16);
+    env->regs[4] = deposit32(env->regs[4], cnt, 0, 16);
+}
+
+void helper_sim_write(CPUH8300State *env)
+{
+    int fd, size, i;
+    char *buf, *p;
+    uint32_t addr;
+    
+    fd = env->regs[0];
+    addr = env->regs[1];
+    size = env->regs[2];
+    buf = malloc(size);
+    for (p = buf, i = 0; i < size; i++) {
+        *p++ = cpu_ldub_data_ra(env, addr++, GETPC());
+    }
+    write(fd, buf, size);
+    free(buf);
+}
+
+void helper_dump(uint32_t val)
+{
+    printf("val: %08x\n", val);
 }
 
 /* exception */

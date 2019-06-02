@@ -24,14 +24,14 @@
 #include "hw/registerfields.h"
 #include "qom/cpu.h"
 
-#define TYPE_RXCPU "h8300cpu"
+#define TYPE_H8300CPU "h8300cpu"
 
-#define RXCPU_CLASS(klass)                                     \
-    OBJECT_CLASS_CHECK(RXCPUClass, (klass), TYPE_RXCPU)
-#define RXCPU(obj) \
-    OBJECT_CHECK(RXCPU, (obj), TYPE_RXCPU)
-#define RXCPU_GET_CLASS(obj) \
-    OBJECT_GET_CLASS(RXCPUClass, (obj), TYPE_RXCPU)
+#define H8300CPU_CLASS(klass)                                     \
+    OBJECT_CLASS_CHECK(H8300CPUClass, (klass), TYPE_H8300CPU)
+#define H8300CPU(obj) \
+    OBJECT_CHECK(H8300CPU, (obj), TYPE_H8300CPU)
+#define H8300CPU_GET_CLASS(obj) \
+    OBJECT_GET_CLASS(H8300CPUClass, (obj), TYPE_H8300CPU)
 
 /*
  * H8300CPUClass:
@@ -62,15 +62,23 @@ typedef struct H8300CPUClass {
 
 /* CCR define */
 REG8(CCR, 0)
-FIELD(PSW, C, 0, 1)
-FIELD(PSW, V, 1, 1)
-FIELD(PSW, Z, 2, 1)
-FIELD(PSW, N, 3, 1)
-FIELD(PSW, U, 4, 1)
-FIELD(PSW, H, 5, 1)
-FIELD(PSW, UI, 6, 1)
-FIELD(PSW, I,  7, 4)
+FIELD(CCR, C, 0, 1)
+FIELD(CCR, V, 1, 1)
+FIELD(CCR, Z, 2, 1)
+FIELD(CCR, N, 3, 1)
+FIELD(CCR, U, 4, 1)
+FIELD(CCR, H, 5, 1)
+FIELD(CCR, UI, 6, 1)
+FIELD(CCR, I,  7, 1)
 
+/* SYSCR */
+REG8(SYSCR, 0)
+FIELD(SYSCR, RAME,  0, 1)
+FIELD(SYSCR, SSOE,  1, 1)
+FIELD(SYSCR, NMIEG, 2, 1)
+FIELD(SYSCR, UE,    3, 1)
+FIELD(SYSCR, STS,   4, 3)
+FIELD(SYSCR, SSBY,  7, 1)
 
 #define NB_MMU_MODES 1
 #define MMU_MODE0_SUFFIX _all
@@ -82,14 +90,14 @@ enum {
 typedef struct CPUH8300State {
     /* CPU registers */
     uint32_t regs[NUM_REGS];    /* general registers */
-    uint32_t psw_c;             /* O bit of status register */
-    uint32_t psw_v;             /* S bit of status register */
-    uint32_t psw_z;             /* Z bit of status register */
-    uint32_t psw_n;             /* C bit of status register */
-    uint32_t psw_u;
-    uint32_t psw_h;
-    uint32_t psw_ui;
-    uint32_t psw_i;
+    uint32_t ccr_c;             /* C bit of status register */
+    uint32_t ccr_v;             /* V bit of status register */
+    uint32_t ccr_z;             /* Z bit of status register */
+    uint32_t ccr_n;             /* N bit of status register */
+    uint32_t ccr_u;
+    uint32_t ccr_h;
+    uint32_t ccr_ui;
+    uint32_t ccr_i;
     uint32_t pc;                /* program counter */
 
     /* Fields up to this point are cleared by a CPU reset */
@@ -98,9 +106,9 @@ typedef struct CPUH8300State {
     /* Internal use */
     uint32_t in_sleep;
     uint32_t req_irq;           /* Requested interrupt no (hard) */
-    uint32_t req_ipl;           /* Requested interrupt level */
     uint32_t ack_irq;           /* execute irq */
-    uint32_t ack_ipl;           /* execute ipl */
+    uint32_t req_pri;
+    uint8_t syscr;
     qemu_irq ack;		/* Interrupt acknowledge */
 
     CPU_COMMON
@@ -112,7 +120,7 @@ typedef struct CPUH8300State {
  *
  * A H8300 CPU
  */
-struct H830CPU {
+struct H8300CPU {
     /*< private >*/
     CPUState parent_obj;
     /*< public >*/
@@ -131,8 +139,8 @@ static inline H8300CPU *h8300_env_get_cpu(CPUH8300State *env)
 
 #define ENV_OFFSET offsetof(H8300CPU, env)
 
-#define RX_CPU_TYPE_SUFFIX "-" TYPE_H8300CPU
-#define RX_CPU_TYPE_NAME(model) model H8300_CPU_TYPE_SUFFIX
+#define H8300_CPU_TYPE_SUFFIX "-" TYPE_H8300CPU
+#define H8300_CPU_TYPE_NAME(model) model H8300_CPU_TYPE_SUFFIX
 #define CPU_RESOLVING_TYPE TYPE_H8300CPU
 
 void h8300_cpu_do_interrupt(CPUState *cpu);
@@ -147,9 +155,9 @@ int cpu_h8300_signal_handler(int host_signum, void *pinfo,
                            void *puc);
 
 void h8300_cpu_list(void);
-void h8300_load_image(RXCPU *cpu, const char *filename,
+void h8300_load_image(H8300CPU *cpu, const char *filename,
                    uint32_t start, uint32_t size);
-void h8300_cpu_unpack_psw(CPURXState *env, uint32_t psw, int rte);
+void h8300_cpu_unpack_ccr(CPUH8300State *env, uint32_t psw);
 
 #define cpu_signal_handler cpu_h8300_signal_handler
 #define cpu_list h8300_cpu_list
@@ -160,7 +168,7 @@ void h8300_cpu_unpack_psw(CPURXState *env, uint32_t psw, int rte);
 
 #define H8300_CPU_IRQ 0
 
-static inline void cpu_get_tb_cpu_state(CPURXState *env, target_ulong *pc,
+static inline void cpu_get_tb_cpu_state(CPUH8300State *env, target_ulong *pc,
                                         target_ulong *cs_base, uint32_t *flags)
 {
     *pc = env->pc;
@@ -168,12 +176,12 @@ static inline void cpu_get_tb_cpu_state(CPURXState *env, target_ulong *pc,
     *flags = 0;
 }
 
-static inline int cpu_mmu_index(CPURXState *env, bool ifetch)
+static inline int cpu_mmu_index(CPUH8300State *env, bool ifetch)
 {
     return 0;
 }
 
-static inline uint32_t h8300_cpu_pack_ccr(CPURXState *env)
+static inline uint32_t h8300_cpu_pack_ccr(CPUH8300State *env)
 {
     uint32_t ccr = 0;
     ccr = FIELD_DP32(ccr, CCR, I,  env->ccr_i);

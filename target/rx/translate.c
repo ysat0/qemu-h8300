@@ -1087,6 +1087,7 @@ static void rx_sub(TCGv ret, TCGv arg1, TCGv arg2)
         tcg_gen_mov_i32(ret, cpu_psw_s);
     }
 }
+
 static void rx_cmp(TCGv dummy, TCGv arg1, TCGv arg2)
 {
     rx_sub(NULL, arg1, arg2);
