@@ -177,10 +177,13 @@ class Field:
         return str(self.pos) + ':' + s + str(self.len)
 
     def str_extract(self):
-        if self.sign:
-            extr = 'sextract32'
+        if self.pos == 0 and self.len ==0:
+            extr = 'dummy'
         else:
-            extr = 'extract32'
+            if self.sign:
+                extr = 'sextract32'
+            else:
+                extr = 'extract32'
         return '{0}(insn, {1}, {2})'.format(extr, self.pos, self.len)
 
     def __eq__(self, other):

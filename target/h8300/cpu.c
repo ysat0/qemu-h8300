@@ -49,19 +49,19 @@ static void h8300_cpu_reset(CPUState *s)
 {
     H8300CPU *cpu = H8300CPU(s);
     H8300CPUClass *rcc = H8300CPU_GET_CLASS(cpu);
-    CPURXState *env = &cpu->env;
+    CPUH8300State *env = &cpu->env;
     uint32_t *resetvec;
 
     rcc->parent_reset(s);
 
-    memset(env, 0, offsetof(CPURXState, end_reset_fields));
+    memset(env, 0, offsetof(CPUH8300State, end_reset_fields));
 
     resetvec = rom_ptr(0x000000, 4);
     if (resetvec) {
         /* In the case of kernel, it is ignored because it is not set. */
         env->pc = ldl_p(resetvec);
     }
-    h8300_cpu_unpack_psw(env, 0);
+    h8300_cpu_unpack_ccr(env, 0x80);
 }
 
 static void h8300_cpu_list_entry(gpointer data, gpointer user_data)
@@ -121,7 +121,7 @@ static void h8300_cpu_set_irq(void *opaque, int no, int request)
 
     if (irq) {
         cpu->env.req_irq = irq;
-        cpu->env.req_ipl = (request >> 8) & 0x03;
+        cpu->env.req_pri = (request >> 8) & 0x03;
         cpu_interrupt(cs, CPU_INTERRUPT_HARD);
     } else {
         cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
@@ -138,7 +138,7 @@ static void h8300_cpu_init(Object *obj)
 {
     CPUState *cs = CPU(obj);
     H8300CPU *cpu = H8300CPU(obj);
-    CPURXState *env = &cpu->env;
+    CPUH8300State *env = &cpu->env;
 
     cs->env_ptr = env;
     qdev_init_gpio_in(DEVICE(cpu), h8300_cpu_set_irq, 1);
@@ -207,6 +207,8 @@ static void rxcpu_register_types(void)
 type_init(rxcpu_register_types)
 
 static uint32_t extable[64];
+
+#define IRAMTOP 0xffbf20
 
 void h8300_load_image(H8300CPU *cpu, const char *filename,
                    uint32_t start, uint32_t size)
