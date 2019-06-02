@@ -7379,7 +7379,7 @@ target_name=$(echo $target | cut -d '-' -f 1)
 target_bigendian="no"
 
 case "$target_name" in
-  armeb|aarch64_be|hppa|lm32|m68k|microblaze|mips|mipsn32|mips64|moxie|or1k|ppc|ppc64|ppc64abi32|s390x|sh4eb|sparc|sparc64|sparc32plus|xtensaeb)
+  armeb|aarch64_be|h8300|hppa|lm32|m68k|microblaze|mips|mipsn32|mips64|moxie|or1k|ppc|ppc64|ppc64abi32|s390x|sh4eb|sparc|sparc64|sparc32plus|xtensaeb)
   target_bigendian=yes
   ;;
 esac
@@ -7457,6 +7457,11 @@ case "$target_name" in
   ;;
   cris)
     target_compiler=$cross_cc_cris
+  ;;
+  h8300)
+    TARGET_ARCH=h8300
+    bflt="yes"
+    target_compiler=$cross_cc_h8300
   ;;
   hppa)
     mttcg="yes"
@@ -7738,6 +7743,9 @@ for i in $ARCH $TARGET_BASE_ARCH ; do
   cris)
     disas_config "CRIS"
   ;;
+  h8300)
+    disas_config "H8300"
+    ;;
   hppa)
     disas_config "HPPA"
   ;;
