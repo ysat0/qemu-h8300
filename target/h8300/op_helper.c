@@ -37,19 +37,25 @@ uint32_t helper_get_ccr(CPUH8300State *env)
 /* div */
 uint32_t helper_div(CPUH8300State *env, uint32_t num, uint32_t den)
 {
-    uint32_t ret = num;
+    uint32_t q = num, r = 0, ret;
     if (!((num == INT_MIN && den == -1) || den == 0)) {
-        ret = (int32_t)num / (int32_t)den;
+        q = (int32_t)num / (int32_t)den;
+        r = (int32_t)num % (int32_t)den;
     }
+    ret = deposit32(0, 0, 16, q);
+    ret = deposit32(ret, 16, 16, r);
     return ret;
 }
 
 uint32_t helper_divu(CPUH8300State *env, uint32_t num, uint32_t den)
 {
-    uint32_t ret = num;
+    uint32_t q = num, r = 0, ret;
     if (den != 0) {
-        ret = num / den;
+        q = num / den;
+        r = num % den;
     }
+    ret = deposit32(0, 0, 16, q);
+    ret = deposit32(ret, 16, 16, r);
     return ret;
 }
 
@@ -147,28 +153,6 @@ void helper_eepmovw(CPUH8300State *env)
         cnt--;
     }
     env->regs[4] = deposit32(env->regs[4], cnt, 0, 16);
-}
-
-void helper_sim_write(CPUH8300State *env)
-{
-    int fd, size, i;
-    char *buf, *p;
-    uint32_t addr;
-    
-    fd = env->regs[0];
-    addr = env->regs[1];
-    size = env->regs[2];
-    buf = malloc(size);
-    for (p = buf, i = 0; i < size; i++) {
-        *p++ = cpu_ldub_data_ra(env, addr++, GETPC());
-    }
-    write(fd, buf, size);
-    free(buf);
-}
-
-void helper_dump(uint32_t val)
-{
-    printf("val: %08x\n", val);
 }
 
 /* exception */
