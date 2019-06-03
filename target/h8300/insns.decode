@@ -262,7 +262,7 @@ BXOR_r		0111 0101 0 ... .... @b2_bop_r
 # BXOR #xx:3,@ERd
 BXOR_m		0111 1100 .... 0000 0111 0101 0 ... 0000 @b4_bop_m
 # BXOR #xx:3,@aa:8
-BXOR_a		0111 1110 .... .... 0110 0101 0 ... 0000 @b4_bop_a
+BXOR_a		0111 1110 .... .... 0111 0101 0 ... 0000 @b4_bop_a
 # CMP.B #xx:8,Rd
 CMP_i		1010 .... .... .... @b2_r_imm
 # CMP.B Rs,Rd
@@ -290,9 +290,9 @@ DEC		0001 1011 0111 .... @b2_idl imm=1 sz=2
 # DEC.L #2,ERd
 DEC		0001 1011 1111 .... @b2_idl imm=2 sz=2
 # DIVXS.B Rs,Rd
-DIVXS		0000 0001 1101 0000 0101 0001 .... .... @b4_rs_rd sz=1
+DIVXS		0000 0001 1101 0000 0101 0001 .... .... @b4_rs_rd sz=0
 #DIVXS.W Rs,ERd
-DIVXS		0000 0001 1101 0000 0101 0011 .... .... @b4_rs_erd sz=2
+DIVXS		0000 0001 1101 0000 0101 0011 .... .... @b4_rs_erd sz=1
 # DIVXU.B Rs,Rd
 DIVXU		0101 0001 .... .... @b2_rs_rd sz=0
 # DIVXU.W Rs,ERd
@@ -394,7 +394,7 @@ MOV_mpr		0110 1101 0 ... .... @b2_er_r dsp=0 sz=1
 # MOV.W @aa:16,Rd
 MOV_ar		0110 1011 0000 .... .... .... .... .... @b4_r_abs sz=1 a=16
 # MOV.W @aa:24,Rd
-MOV_ar		0110 1011 0010 .... @b6_r_abs sz=0 a=24
+MOV_ar		0110 1011 0010 .... @b6_r_abs sz=1 a=24
 # MOV.W Rs,@ERd
 MOV_rm		0110 1001 1 ... .... @b2_er_r dsp=0 sz=1
 # MOV.W Rs,@(d:16,ERd)
@@ -402,7 +402,7 @@ MOV_rm		0110 1111 1 ... .... @b2_er_r dsp=%dsp16 sz=1
 # MOV.W Rs,@(d:24,ERd)
 MOV_rm		0111 1000 .... 0000 0110 1011 1010 .... @b8_er_r dsp=%dsp24 sz=1
 # MOV.W Rs,@-ERd
-MOV_rmp		0110 1101 1 ... .... @b2_er_r dsp=0 sz=0
+MOV_rmp		0110 1101 1 ... .... @b2_er_r dsp=0 sz=1
 # MOV.W Rs,@aa:16
 MOV_ra		0110 1011 1000 .... .... .... .... .... @b4_r_abs sz=1 a=16
 # MOV.W Rs,@aa:24
@@ -470,7 +470,7 @@ OR_i		0111 1001 0100 .... .... .... .... .... @b4_rd_imm
 # OR.W Rs,Rd
 OR_r		0110 0100 .... .... @b2_rs_rd sz=1
 # OR.L #xx:32,ERd
-#OR_i		0111 1010 0100 0 ... @b6_rd_imm
+OR_i		0111 1010 0100 .... @b6_rd_imm
 # OR.L ERs,ERd
 OR_r		0000 0001 1111 0000 0110 0100 0 ... .... @b4_ers_erd
 # ORC #xx:8,CCR
