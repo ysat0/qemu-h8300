@@ -1,0 +1,12 @@
+config H8300
+    bool
+
+config H83069
+    bool
+    select H8300
+    select RENESAS_TMR8
+    select RENESAS_SCI
+
+config H8300_KANEBEBE
+    bool
+    select H83069

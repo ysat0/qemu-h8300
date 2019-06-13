@@ -61,7 +61,7 @@ static void h8300_cpu_reset(CPUState *s)
         /* In the case of kernel, it is ignored because it is not set. */
         env->pc = ldl_p(resetvec);
     }
-    h8300_cpu_unpack_ccr(env, 0x80);
+    h8300_cpu_unpack_ccr(env, 0x00);
 }
 
 static void h8300_cpu_list_entry(gpointer data, gpointer user_data)
