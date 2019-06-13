@@ -201,7 +201,7 @@ static void ccr_cond(DisasCompare *dc, uint32_t cond)
     switch (cond) {
     case 2: /* !(c | z) */
     case 3: /* c | z */
-        tcg_gen_setcondi_i32(TCG_COND_NE, dc->temp, cpu_ccr_z, 0);
+        tcg_gen_setcondi_i32(TCG_COND_EQ, dc->temp, cpu_ccr_z, 0);
         tcg_gen_or_i32(dc->temp, dc->temp, cpu_ccr_c);
         dc->cond = (cond == 2) ? TCG_COND_EQ : TCG_COND_NE;
         dc->value = dc->temp;
@@ -639,7 +639,7 @@ static void h8300_sub(int sz, TCGv ret, TCGv arg1, TCGv arg2, bool c)
     tcg_gen_sub_i32(cpu_ccr_n, arg1, arg2);
     tcg_gen_mov_i32(cpu_ccr_z, cpu_ccr_n);
     if (c) {
-        tcg_gen_setcond_i32(TCG_COND_GTU, cpu_ccr_c, arg1, arg2);
+        tcg_gen_setcond_i32(TCG_COND_LTU, cpu_ccr_c, arg1, arg2);
     }
     tcg_gen_xor_i32(cpu_ccr_v, cpu_ccr_n, arg1);
     switch(sz) {
@@ -1335,13 +1335,9 @@ static bool trans_ROTXR(DisasContext *ctx, arg_ROTXR *a)
         break;
     }
     tcg_gen_extract_i32(c, reg, 0, 1);
-    gen_helper_dump(reg);
-    gen_helper_dump(c);
     tcg_gen_shri_i32(reg, reg, 1);
     tcg_gen_deposit_z_i32(cpu_ccr_c, cpu_ccr_c, 8 * (1 << a->sz) - 1, 1);
-    gen_helper_dump(cpu_ccr_c);
     tcg_gen_or_i32(reg, reg, cpu_ccr_c);
-    gen_helper_dump(reg);
     h8300_reg_st(a->sz, a->r, reg);
     tcg_gen_mov_i32(cpu_ccr_c, c);
     tcg_gen_mov_i32(cpu_ccr_z, reg);

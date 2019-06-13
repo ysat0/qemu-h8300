@@ -266,11 +266,11 @@ BXOR_a		0111 1110 .... .... 0111 0101 0 ... 0000 @b4_bop_a
 # CMP.B #xx:8,Rd
 CMP_i		1010 .... .... .... @b2_r_imm
 # CMP.B Rs,Rd
-CMP_r		0001 1100 .... .... @b2_rs_rd sz=1
+CMP_r		0001 1100 .... .... @b2_rs_rd sz=0
 # CMP.W #xx:16,Rd
 CMP_i		0111 1001 0010 .... .... .... .... .... @b4_rd_imm
 # CMP.W Rs,Rd
-CMP_r		0001 1101 .... .... @b2_rs_rd sz=2
+CMP_r		0001 1101 .... .... @b2_rs_rd sz=1
 #CMP.L #xx:32,ERd
 CMP_i		0111 1010 0010 .... @b6_rd_imm
 # CMP.L ERs,ERd

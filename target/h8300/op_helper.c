@@ -152,7 +152,7 @@ void helper_eepmovw(CPUH8300State *env)
         env->regs[6]++;
         cnt--;
     }
-    env->regs[4] = deposit32(env->regs[4], cnt, 0, 16);
+    env->regs[4] = deposit32(env->regs[4], 0, 16, cnt);
 }
 
 /* exception */

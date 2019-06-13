@@ -1,0 +1,2 @@
+obj-$(CONFIG_H83069) += h83069.o
+obj-$(CONFIG_H8300_KANEBEBE) += kanebebe.o
