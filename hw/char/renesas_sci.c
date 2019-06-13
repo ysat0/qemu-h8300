@@ -161,7 +161,7 @@ static void sci_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
         break;
     case A_SCR:
         sci->scr = val;
-        if (FIELD_EX8(sci->scr, SCR, TE)) {
+        if ((sci->rev >= 1) && FIELD_EX8(sci->scr, SCR, TE)) {
             sci->ssr = FIELD_DP8(sci->ssr, SSR, TDRE, 1);
             sci->ssr = FIELD_DP8(sci->ssr, SSR, TEND, 1);
             if (FIELD_EX8(sci->scr, SCR, TIE)) {
@@ -177,7 +177,7 @@ static void sci_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
         break;
     case A_TDR:
         sci->tdr = val;
-        if (FIELD_EX8(sci->ssr, SSR, TEND)) {
+        if ((sci->rev >= 1) && FIELD_EX8(sci->ssr, SSR, TEND)) {
             send_byte(sci);
         } else {
             sci->ssr = FIELD_DP8(sci->ssr, SSR, TDRE, 0);
@@ -191,6 +191,9 @@ static void sci_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
         if (FIELD_EX8(sci->read_ssr, SSR, ERR) &&
             FIELD_EX8(sci->ssr, SSR, ERR) == 0) {
             qemu_set_irq(sci->irq[ERI], 0);
+        }
+        if ((sci->rev == 0) && FIELD_EX8(sci->scr, SSR, TDRE) == 0) {
+            send_byte(sci);
         }
         break;
     case A_RDR:
@@ -310,6 +313,7 @@ static const VMStateDescription vmstate_rcmt = {
 
 static Property rsci_properties[] = {
     DEFINE_PROP_UINT64("input-freq", RSCIState, input_freq, 0),
+    DEFINE_PROP_UINT32("rev", RSCIState, rev, 1),
     DEFINE_PROP_CHR("chardev", RSCIState, chr),
     DEFINE_PROP_END_OF_LIST(),
 };

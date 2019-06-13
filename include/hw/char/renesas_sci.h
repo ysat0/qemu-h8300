@@ -42,4 +42,5 @@ typedef struct {
     CharBackend chr;
     uint64_t input_freq;
     qemu_irq irq[SCI_NR_IRQ];
+    uint32_t rev;
 } RSCIState;
