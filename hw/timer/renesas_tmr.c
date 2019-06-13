@@ -33,6 +33,7 @@
 #include "qemu/error-report.h"
 
 REG8(TCR, 0)
+  FIELD(TCR, CKS,  0, 3)
   FIELD(TCR, CCLR, 3, 2)
   FIELD(TCR, OVIE, 5, 1)
   FIELD(TCR, CMIEA, 6, 1)
@@ -49,12 +50,50 @@ REG8(TCCR, 10)
   FIELD(TCCR, CSS, 3, 2)
   FIELD(TCCR, TMRIS, 7, 1)
 
-#define INTERNAL  0x01
-#define CASCADING 0x03
+#define INTERNAL0  0x01
+#define CASCADING0 0x03
+#define CASCADING1 0x04
 #define CCLR_A    0x01
 #define CCLR_B    0x02
 
-static const int clkdiv[] = {0, 1, 2, 8, 32, 64, 1024, 8192};
+static inline int is_external(RTMRState *tmr, int ch)
+{
+    switch(tmr->type) {
+    case 0:
+        return FIELD_EX8(tmr->tccr[ch], TCCR, CSS) == 0;
+    case 1:
+        return FIELD_EX8(tmr->tcr[ch], TCR, CKS) >= 5;
+    default:
+        g_assert_not_reached();
+    }
+}
+
+static inline int is_cascading(RTMRState *tmr, int ch)
+{
+    switch(tmr->type) {
+    case 0:
+        return FIELD_EX8(tmr->tccr[ch], TCCR, CSS) == CASCADING0;
+    case 1:
+        return FIELD_EX8(tmr->tcr[ch], TCR, CKS) == CASCADING1;
+    default:
+        g_assert_not_reached();
+    }
+}
+
+static inline int divrate(RTMRState *tmr, int ch)
+{
+    static const int clkdiv0[] = {0, 1, 2, 8, 32, 64, 1024, 8192};
+    static const int clkdiv1[] = {0, 8, 64, 8192};
+
+    switch(tmr->type) {
+    case 0:
+        return clkdiv0[FIELD_EX8(tmr->tccr[ch], TCCR, CKS)];
+    case 1:
+        return clkdiv1[FIELD_EX8(tmr->tcr[ch], TCR, CKS)];
+    default:
+        g_assert_not_reached();
+    }
+}
 
 #define concat_reg(reg) ((reg[0] << 8) | reg[1])
 static void update_events(RTMRState *tmr, int ch)
@@ -66,12 +105,12 @@ static void update_events(RTMRState *tmr, int ch)
     if (tmr->tccr[ch] == 0) {
         return ;
     }
-    if (FIELD_EX8(tmr->tccr[ch], TCCR, CSS) == 0) {
+    if (is_external(tmr, ch)) {
         /* external clock mode */
         /* event not happened */
         return ;
     }
-    if (FIELD_EX8(tmr->tccr[0], TCCR, CSS) == CASCADING) {
+    if (is_cascading(tmr, 0)) {
         /* cascading mode */
         if (ch == 1) {
             tmr->next[ch] = none;
@@ -95,29 +134,28 @@ static void update_events(RTMRState *tmr, int ch)
     }
     tmr->next[ch] = event;
     next_time = diff[event];
-    next_time *= clkdiv[FIELD_EX8(tmr->tccr[ch], TCCR, CKS)];
+    next_time *= divrate(tmr, ch);
     next_time *= NANOSECONDS_PER_SECOND;
     next_time /= tmr->input_freq;
     next_time += qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
     timer_mod(tmr->timer[ch], next_time);
 }
 
-
 static inline int elapsed_time(RTMRState *tmr, int ch, int64_t delta)
 {
-    int divrate = clkdiv[FIELD_EX8(tmr->tccr[ch], TCCR, CKS)];
     int et;
 
     tmr->div_round[ch] += delta;
     if (divrate > 0) {
-        et = tmr->div_round[ch] / divrate;
-        tmr->div_round[ch] %= divrate;
+        et = tmr->div_round[ch] / divrate(tmr, ch);
+        tmr->div_round[ch] %= divrate(tmr, ch);
     } else {
         /* disble clock. so no update */
         et = 0;
     }
     return et;
 }
+
 static uint16_t read_tcnt(RTMRState *tmr, unsigned size, int ch)
 {
     int64_t delta, now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
@@ -129,7 +167,7 @@ static uint16_t read_tcnt(RTMRState *tmr, unsigned size, int ch)
     if (delta > 0) {
         tmr->tick = now;
 
-        if (FIELD_EX8(tmr->tccr[1], TCCR, CSS) == INTERNAL) {
+        if (!is_external(tmr, 1)) {
             /* timer1 count update */
             elapsed = elapsed_time(tmr, 1, delta);
             if (elapsed >= 0x100) {
@@ -137,16 +175,13 @@ static uint16_t read_tcnt(RTMRState *tmr, unsigned size, int ch)
             }
             tcnt[1] = tmr->tcnt[1] + (elapsed & 0xff);
         }
-        switch (FIELD_EX8(tmr->tccr[0], TCCR, CSS)) {
-        case INTERNAL:
-            elapsed = elapsed_time(tmr, 0, delta);
-            tcnt[0] = tmr->tcnt[0] + elapsed;
-            break;
-        case CASCADING:
+        if (is_cascading(tmr, 0)) {
             if (ovf > 0) {
                 tcnt[0] = tmr->tcnt[0] + ovf;
             }
-            break;
+        } else {
+            elapsed = elapsed_time(tmr, 0, delta);
+            tcnt[0] = tmr->tcnt[0] + elapsed;
         }
     } else {
         tcnt[0] = tmr->tcnt[0];
@@ -319,8 +354,7 @@ static uint16_t issue_event(RTMRState *tmr, int ch, int sz,
             if (FIELD_EX8(tmr->tcr[ch], TCR, CMIEA)) {
                 qemu_irq_pulse(tmr->cmia[ch]);
             }
-            if (sz == 8 && ch == 0 &&
-                FIELD_EX8(tmr->tccr[1], TCCR, CSS) == CASCADING) {
+            if (sz == 8 && ch == 0 && is_cascading(tmr, 1)) {
                 tmr->tcnt[1]++;
                 timer_events(tmr, 1);
             }
@@ -351,7 +385,7 @@ static void timer_events(RTMRState *tmr, int ch)
 {
     uint16_t tcnt;
     tmr->tcnt[ch] = read_tcnt(tmr, 1, ch);
-    if (FIELD_EX8(tmr->tccr[0], TCCR, CSS) != CASCADING) {
+    if (!is_cascading(tmr, 0)) {
         tmr->tcnt[ch] = issue_event(tmr, ch, 8,
                                     tmr->tcnt[ch],
                                     tmr->tcora[ch], tmr->tcorb[ch]) & 0xff;
@@ -427,6 +461,7 @@ static const VMStateDescription vmstate_rtmr = {
 
 static Property rtmr_properties[] = {
     DEFINE_PROP_UINT64("input-freq", RTMRState, input_freq, 0),
+    DEFINE_PROP_UINT32("timer-type", RTMRState, type, 0),
     DEFINE_PROP_END_OF_LIST(),
 };
 
