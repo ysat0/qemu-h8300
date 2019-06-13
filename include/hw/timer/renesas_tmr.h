@@ -45,6 +45,7 @@ typedef struct RTMRState {
     qemu_irq cmib[TMR_CH];
     qemu_irq ovi[TMR_CH];
     QEMUTimer *timer[TMR_CH];
+    uint32_t type;
 } RTMRState;
 
 #endif
