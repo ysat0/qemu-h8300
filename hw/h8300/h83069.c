@@ -46,10 +46,31 @@ static const MemoryRegionOps syscr_ops = {
     },
 };
 
+static void register_intc(H83069State *s)
+{
+    int i;
+    SysBusDevice *intc;
+
+    object_initialize_child(OBJECT(s), "intc", &s->intc,
+                            sizeof(H8300HINTCState),
+                            TYPE_H8300HINTC, &error_abort, NULL);
+
+    intc = SYS_BUS_DEVICE(&s->intc);
+    sysbus_mmio_map(intc, 0, H83069_INTCBASE);
+
+    for (i = 0; i < NR_IRQS; i++) {
+        s->irq[i] = qdev_get_gpio_in(DEVICE(intc), i);
+    }
+
+    qdev_init_nofail(DEVICE(intc));
+    sysbus_connect_irq(intc, 0,
+                       qdev_get_gpio_in(DEVICE(&s->cpu), H8300_CPU_IRQ));
+}
+
 static void register_tmr(H83069State *s, int unit)
 {
     SysBusDevice *tmr;
-    /*int i, irqbase;*/
+    int i, irqbase;
 
     object_initialize_child(OBJECT(s), "tmr[*]", &s->tmr[unit],
                             sizeof(RTMRState), TYPE_RENESAS_TMR,
@@ -61,18 +82,16 @@ static void register_tmr(H83069State *s, int unit)
     qdev_prop_set_uint32(DEVICE(tmr), "timer-type", 1);
 
     qdev_init_nofail(DEVICE(tmr));
-#if 0
-    irqbase = RX62N_TMR_IRQBASE + TMR_NR_IRQ * unit;
+    irqbase = H83069_TMR_IRQBASE + TMR_NR_IRQ * unit;
     for (i = 0; i < TMR_NR_IRQ; i++) {
         sysbus_connect_irq(tmr, i, s->irq[irqbase + i]);
     }
-#endif
 }
 
 static void register_sci(H83069State *s, int unit)
 {
     SysBusDevice *sci;
-    /*int i, irqbase;*/
+    int i, irqbase;
 
     object_initialize_child(OBJECT(s), "sci[*]", &s->sci[unit],
                             sizeof(RSCIState), TYPE_RENESAS_SCI,
@@ -84,12 +103,10 @@ static void register_sci(H83069State *s, int unit)
     qdev_prop_set_uint64(DEVICE(sci), "input-freq", s->input_freq);
 
     qdev_init_nofail(DEVICE(sci));
-#if 0
-    irqbase = RX62N_SCI_IRQBASE + SCI_NR_IRQ * unit;
+    irqbase = H83069_SCI_IRQBASE + SCI_NR_IRQ * unit;
     for (i = 0; i < SCI_NR_IRQ; i++) {
         sysbus_connect_irq(sci, i, s->irq[irqbase + i]);
     }
-#endif
 }
 
 static void h83069_realize(DeviceState *dev, Error **errp)
@@ -114,12 +131,8 @@ static void h83069_realize(DeviceState *dev, Error **errp)
                             errp, NULL);
     object_property_set_bool(OBJECT(&s->cpu), true, "realized", errp);
 
-#if 0    
-    register_icu(s);
-    s->cpu.env.ack = qdev_get_gpio_in_named(DEVICE(&s->icu), "ack", 0);
-    register_cmt(s, 0);
-    register_cmt(s, 1);
-#endif
+    register_intc(s);
+    s->cpu.env.ack = qdev_get_gpio_in_named(DEVICE(&s->intc), "ack", 0);
     register_tmr(s, 0);
     register_tmr(s, 1);
     register_sci(s, 0);
