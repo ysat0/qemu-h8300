@@ -473,6 +473,54 @@ static inline uint32_t deposit32(uint32_t value, int start, int length,
 }
 
 /**
+ * deposit8:
+ * @value: initial value to insert bit field into
+ * @start: the lowest bit in the bit field (numbered from 0)
+ * @length: the length of the bit field
+ * @fieldval: the value to insert into the bit field
+ *
+ * Deposit @fieldval into the 8 bit @value at the bit field specified
+ * by the @start and @length parameters, and return the modified
+ * @value. Bits of @value outside the bit field are not modified.
+ * Bits of @fieldval above the least significant @length bits are
+ * ignored. The bit field must lie entirely within the 8 bit word.
+ * It is valid to request that all 8 bits are modified (ie @length
+ * 8 and @start 0).
+ *
+ * Returns: the modified @value.
+ */
+static inline uint32_t deposit8(uint32_t value, int start, int length,
+                                uint32_t fieldval)
+{
+    assert(start >= 0 && length > 0 && length <= 8 - start);
+    return deposit32(value, start, length, fieldval);
+}
+
+/**
+ * deposit16:
+ * @value: initial value to insert bit field into
+ * @start: the lowest bit in the bit field (numbered from 0)
+ * @length: the length of the bit field
+ * @fieldval: the value to insert into the bit field
+ *
+ * Deposit @fieldval into the 16 bit @value at the bit field specified
+ * by the @start and @length parameters, and return the modified
+ * @value. Bits of @value outside the bit field are not modified.
+ * Bits of @fieldval above the least significant @length bits are
+ * ignored. The bit field must lie entirely within the 16 bit word.
+ * It is valid to request that all 16 bits are modified (ie @length
+ * 16 and @start 0).
+ *
+ * Returns: the modified @value.
+ */
+static inline uint32_t deposit16(uint32_t value, int start, int length,
+                                uint32_t fieldval)
+{
+    assert(start >= 0 && length > 0 && length <= 16 - start);
+    return deposit32(value, start, length, fieldval);
+}
+
+/**
  * deposit64:
  * @value: initial value to insert bit field into
  * @start: the lowest bit in the bit field (numbered from 0)

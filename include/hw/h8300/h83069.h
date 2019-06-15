@@ -24,6 +24,7 @@
 #include "qemu/units.h"
 #include "hw/timer/renesas_tmr.h"
 #include "hw/char/renesas_sci.h"
+#include "hw/intc/h8300h_intc.h"
 
 #define TYPE_H83069 "h83069"
 #define TYPE_H83069_CPU RX_CPU_TYPE_NAME(TYPE_H83069)
@@ -35,18 +36,18 @@ typedef struct H83069State {
     H8300CPU cpu;
     RTMRState tmr[2];
     RSCIState sci[3];
-
+    H8300HINTCState intc;
 
     MemoryRegion *sysmem;
     bool kernel;
 
     MemoryRegion iram;
-    MemoryRegion abs8;
     MemoryRegion iomem1;
     MemoryRegion iomem2;
     MemoryRegion flash;
     MemoryRegion syscr;
     uint64_t input_freq;
+    qemu_irq irq[NR_IRQS];
 } H83069State;
 
 /*
@@ -61,4 +62,9 @@ typedef struct H83069State {
 
 #define H83069_SCIBASE 0xffffb0
 #define H83069_TMRBASE 0xffff80
+#define H83069_INTCBASE 0xfee014
+
+#define H83069_TMR_IRQBASE 36
+#define H83069_SCI_IRQBASE 52
+
 #endif
