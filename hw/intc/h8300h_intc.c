@@ -68,6 +68,7 @@ static inline int ext_no(int irq)
 static void h8300hintc_set_irq(void *opaque, int n_IRQ, int level)
 {
     H8300HINTCState *intc = opaque;
+    bool enable = true;
 
     if (n_IRQ >= NR_IRQS) {
         error_report("%s: IRQ %d out of range", __func__, n_IRQ);
@@ -81,14 +82,24 @@ static void h8300hintc_set_irq(void *opaque, int n_IRQ, int level)
                 return;
             }
         intc->irqin = deposit8(intc->irqin, ext_no(n_IRQ), 1, level);
-        if (level || (extract8(intc->ier, ext_no(n_IRQ), 1) == 0)) {
-            return ;
+        if (extract8(intc->ier, ext_no(n_IRQ), 1) == 0) {
+            enable = false;
         }
     }
-    intc->req = deposit64(intc->req, n_IRQ, 1, 1);
-    if (atomic_read(&intc->req_irq) < 0) {
-        atomic_set(&intc->req_irq, n_IRQ);
-        qemu_set_irq(intc->irq, (pri(intc, n_IRQ) << 8) | n_IRQ);
+    if (level) {
+        if (enable) {
+            intc->req = deposit64(intc->req, n_IRQ, 1, 1);
+            if (atomic_read(&intc->req_irq) < 0) {
+                atomic_set(&intc->req_irq, n_IRQ);
+                qemu_set_irq(intc->irq, (pri(intc, n_IRQ) << 8) | n_IRQ);
+            }
+        }
+    } else {
+        intc->req = deposit64(intc->req, n_IRQ, 1, 0);
+        if (atomic_read(&intc->req_irq) == n_IRQ) {
+            atomic_set(&intc->req_irq, -1);
+            qemu_set_irq(intc->irq, 0);
+        }
     }
 }
 
@@ -124,6 +135,7 @@ static void h8300hintc_ack_irq(void *opaque, int no, int level)
             n_IRQ = i;
             max_pri = pri(intc, i);
         }
+        i++;
     } while (i < 64);
 
     if (n_IRQ >= 0) {
