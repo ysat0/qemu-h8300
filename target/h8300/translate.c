@@ -148,6 +148,39 @@ static int dummy(uint32_t insn, int pos, int len)
     return 0;
 }
 
+static int adds_imm(DisasContext *ctx, int imm)
+{
+    switch(imm) {
+    case 0:
+        return 1;
+    case 2:
+        return 2;
+    case 3:
+        return 4;
+    default:
+        return 0;
+    }
+}
+
+static int incdec(DisasContext *ctx, int imm)
+{
+    return imm + 1;
+}
+
+static int sz013(DisasContext *ctx, int imm)
+{
+    switch(imm) {
+    case 0:
+    case 1:
+        return imm;
+    case 2:
+    case 3:
+        return 2;
+    default:
+        return -1;
+    }
+}
+
 /* Include the auto-generated decoder. */
 #include "decode.inc.c"
 
@@ -301,6 +334,38 @@ enum {
     SZ_B, SZ_W, SZ_L,
 };
 
+static inline TCGv h8300_reg_ld(int sz, int rn, TCGv val)
+{
+    switch(sz) {
+    case SZ_B:
+        h8300_gen_reg_ldb(rn, val);
+        return val;
+    case SZ_W:
+        h8300_gen_reg_ldw(rn, val);
+        return val;
+    case SZ_L:
+        return cpu_regs[rn & 7];
+    default:
+        g_assert_not_reached();
+    }
+}
+
+static inline void h8300_reg_st(int sz, int rn, TCGv val)
+{
+    switch(sz) {
+    case SZ_B:
+        h8300_gen_reg_stb(rn, val);
+        break;
+    case SZ_W:
+        h8300_gen_reg_stw(rn, val);
+        break;
+    case SZ_L:
+        break;
+    default:
+        g_assert_not_reached();
+    }
+}
+
 static bool trans_MOV_i(DisasContext *ctx, arg_MOV_i *a)
 {
     TCGv imm = tcg_const_i32(a->imm);
@@ -312,7 +377,7 @@ static bool trans_MOV_i(DisasContext *ctx, arg_MOV_i *a)
         h8300_gen_reg_stw(a->rd, imm);
         break;
     case SZ_L:
-        tcg_gen_mov_i32(cpu_regs[a->rd], imm);
+        tcg_gen_mov_i32(cpu_regs[a->rd & 7], imm);
         break;
     }
     tcg_gen_mov_i32(cpu_ccr_z, imm);
@@ -335,6 +400,8 @@ static bool trans_MOV_r(DisasContext *ctx, arg_MOV_r *a)
         h8300_gen_reg_stw(a->rd, temp);
         break;
     case SZ_L:
+        a->rs &= 7;
+        a->rd &= 7;
         tcg_gen_mov_i32(cpu_regs[a->rd], cpu_regs[a->rs]);
         tcg_gen_mov_i32(temp, cpu_regs[a->rs]);
         break;
@@ -361,7 +428,7 @@ static bool trans_MOV_mr(DisasContext *ctx, arg_MOV_mr *a)
         h8300_gen_reg_stw(a->r, temp);
         break;
     case SZ_L:
-        tcg_gen_mov_i32(cpu_regs[a->r], temp);
+        tcg_gen_mov_i32(cpu_regs[a->r & 7], temp);
         break;
     }
     tcg_gen_mov_i32(cpu_ccr_z, temp);
@@ -386,7 +453,7 @@ static bool trans_MOV_mpr(DisasContext *ctx, arg_MOV_mr *a)
         h8300_gen_reg_stw(a->r, temp);
         break;
     case SZ_L:
-        tcg_gen_mov_i32(cpu_regs[a->r], temp);
+        tcg_gen_mov_i32(cpu_regs[a->r & 7], temp);
         break;
     }
     tcg_gen_mov_i32(cpu_ccr_z, temp);
@@ -419,7 +486,7 @@ static bool trans_MOV_ar(DisasContext *ctx, arg_MOV_ar *a)
         h8300_gen_reg_stw(a->r, temp);
         break;
     case SZ_L:
-        tcg_gen_mov_i32(cpu_regs[a->r], temp);
+        tcg_gen_mov_i32(cpu_regs[a->r & 7], temp);
         break;
     }
     tcg_gen_mov_i32(cpu_ccr_z, temp);
@@ -444,7 +511,7 @@ static bool trans_MOV_rm(DisasContext *ctx, arg_MOV_mr *a)
         h8300_gen_reg_ldw(a->r, temp);
         break;
     case SZ_L:
-        tcg_gen_mov_i32(temp, cpu_regs[a->r]);
+        tcg_gen_mov_i32(temp, cpu_regs[a->r & 7]);
         break;
     }
     tcg_gen_qemu_st_i32(temp, mem, 0, a->sz | MO_TE);
@@ -470,7 +537,7 @@ static bool trans_MOV_rmp(DisasContext *ctx, arg_MOV_mr *a)
         h8300_gen_reg_ldw(a->r, temp);
         break;
     case SZ_L:
-        tcg_gen_mov_i32(temp, cpu_regs[a->r]);
+        tcg_gen_mov_i32(temp, cpu_regs[a->r & 7]);
         break;
     }
     tcg_gen_qemu_st_i32(temp, cpu_regs[a->er], 0, a->sz | MO_TE);
@@ -504,7 +571,7 @@ static bool trans_MOV_ra(DisasContext *ctx, arg_MOV_ra *a)
         h8300_gen_reg_ldw(a->r, temp);
         break;
     case SZ_L:
-        tcg_gen_mov_i32(temp, cpu_regs[a->r]);
+        tcg_gen_mov_i32(temp, cpu_regs[a->r & 7]);
         break;
     }
     tcg_gen_qemu_st_i32(temp, mem, 0, a->sz | MO_TE);
@@ -542,38 +609,6 @@ static bool trans_MOVTPE(DisasContext *ctx, arg_MOVTPE *a)
     tcg_temp_free(mem);
     tcg_temp_free(temp);
     return true;
-}
-
-static inline TCGv h8300_reg_ld(int sz, int rn, TCGv val)
-{
-    switch(sz) {
-    case SZ_B:
-        h8300_gen_reg_ldb(rn, val);
-        return val;
-    case SZ_W:
-        h8300_gen_reg_ldw(rn, val);
-        return val;
-    case SZ_L:
-        return cpu_regs[rn];
-    default:
-        g_assert_not_reached();
-    }
-}
-
-static inline void h8300_reg_st(int sz, int rn, TCGv val)
-{
-    switch(sz) {
-    case SZ_B:
-        h8300_gen_reg_stb(rn, val);
-        break;
-    case SZ_W:
-        h8300_gen_reg_stw(rn, val);
-        break;
-    case SZ_L:
-        break;
-    default:
-        g_assert_not_reached();
-    }
 }
 
 static inline void h8300_add(int sz, TCGv ret, TCGv arg1, TCGv arg2, bool c)
@@ -720,8 +755,12 @@ static bool trans_ADD_r(DisasContext *ctx, arg_ADD_r *a)
 
 static bool trans_ADDS(DisasContext *ctx, arg_ADDS *a)
 {
-    tcg_gen_addi_i32(cpu_regs[a->rd], cpu_regs[a->rd], a->imm);
-    return true;
+    if (a->imm > 0) {
+        tcg_gen_addi_i32(cpu_regs[a->rd], cpu_regs[a->rd], a->imm);
+        return true;
+    } else {
+        return false;
+    }
 }
 
 static bool trans_ADDX_i(DisasContext *ctx, arg_ADDX_i *a)
