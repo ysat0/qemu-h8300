@@ -184,5 +184,5 @@ void QEMU_NORETURN helper_debug(CPUH8300State *env)
 
 void QEMU_NORETURN helper_trapa(CPUH8300State *env, uint32_t vec)
 {
-    raise_exception(env, 0x100 + vec, 0);
+    raise_exception(env, vec + 8, 0);
 }
