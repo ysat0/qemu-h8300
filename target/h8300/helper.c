@@ -51,14 +51,16 @@ void h8300_cpu_do_interrupt(CPUState *cs)
         env->ccr_ui = 1;
     }
 
+    env->regs[7] -= 4;
+    cpu_stl_all(env, env->regs[7], save_ccr_pc);
     if (do_irq) {
-        env->regs[7] -= 4;
-        cpu_stl_all(env, env->regs[7], save_ccr_pc);
         env->pc = cpu_ldl_all(env, env->ack_irq * 4);
         cs->interrupt_request &= ~CPU_INTERRUPT_HARD;
         qemu_set_irq(env->ack, env->ack_irq);
         qemu_log_mask(CPU_LOG_INT,
                       "interrupt 0x%02x raised\n", env->ack_irq);
+    } else {
+        env->pc = cpu_ldl_all(env, cs->exception_index * 4);
     }
 }
 
