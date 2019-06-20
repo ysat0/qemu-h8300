@@ -37,6 +37,7 @@ typedef struct H83069State {
     RTMRState tmr[2];
     RSCIState sci[3];
     H8300HINTCState intc;
+    uint8_t syscr_val;
 
     MemoryRegion *sysmem;
     bool kernel;

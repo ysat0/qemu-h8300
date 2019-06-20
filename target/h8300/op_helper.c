@@ -24,14 +24,30 @@
 #include "exec/cpu_ldst.h"
 #include "fpu/softfloat.h"
 
-void helper_set_ccr(CPUH8300State *env, uint32_t ccr)
+void helper_set_ccr(CPUH8300State *env, uint32_t reg, uint32_t ccr)
 {
-    h8300_cpu_unpack_ccr(env, ccr);
+    switch(reg) {
+    case 0:
+        h8300_cpu_unpack_ccr(env, ccr);
+        break;
+    case 1:
+        h8300_cpu_unpack_exr(env, ccr);
+        break;
+    default:
+        g_assert_not_reached();
+    }
 }
 
-uint32_t helper_get_ccr(CPUH8300State *env)
+uint32_t helper_get_ccr(CPUH8300State *env, uint32_t reg)
 {
-    return h8300_cpu_pack_ccr(env);
+    switch(reg) {
+    case 0:
+        return h8300_cpu_pack_ccr(env);
+    case 1:
+        return h8300_cpu_pack_exr(env);
+    default:
+        g_assert_not_reached();
+    }
 }
 
 /* div */

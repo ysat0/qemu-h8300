@@ -71,6 +71,13 @@ FIELD(CCR, H, 5, 1)
 FIELD(CCR, UI, 6, 1)
 FIELD(CCR, I,  7, 1)
 
+REG8(EXR, 0)
+FIELD(EXR, I0, 0, 1)
+FIELD(EXR, I1, 1, 1)
+FIELD(EXR, I2, 2, 1)
+FIELD(EXR, I, 0, 3)
+FIELD(EXR, T, 7, 1)
+
 /* SYSCR */
 REG8(SYSCR, 0)
 FIELD(SYSCR, RAME,  0, 1)
@@ -98,8 +105,14 @@ typedef struct CPUH8300State {
     uint32_t ccr_h;
     uint32_t ccr_ui;
     uint32_t ccr_i;
+    uint32_t exr_i;
+    uint32_t exr_t;
     uint32_t pc;                /* program counter */
-
+    uint64_t mac;
+    uint64_t mult_z;
+    uint32_t mult_n;
+    uint32_t mult_v;
+    
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;
 
@@ -108,7 +121,7 @@ typedef struct CPUH8300State {
     uint32_t req_irq;           /* Requested interrupt no (hard) */
     uint32_t ack_irq;           /* execute irq */
     uint32_t req_pri;
-    uint8_t syscr;
+    uint32_t im;
     qemu_irq ack;		/* Interrupt acknowledge */
 
     CPU_COMMON
@@ -157,7 +170,8 @@ int cpu_h8300_signal_handler(int host_signum, void *pinfo,
 void h8300_cpu_list(void);
 void h8300_load_image(H8300CPU *cpu, const char *filename,
                    uint32_t start, uint32_t size);
-void h8300_cpu_unpack_ccr(CPUH8300State *env, uint32_t psw);
+void h8300_cpu_unpack_ccr(CPUH8300State *env, uint32_t ccr);
+void h8300_cpu_unpack_exr(CPUH8300State *env, uint32_t exr);
 
 #define cpu_signal_handler cpu_h8300_signal_handler
 #define cpu_list h8300_cpu_list
@@ -173,7 +187,7 @@ static inline void cpu_get_tb_cpu_state(CPUH8300State *env, target_ulong *pc,
 {
     *pc = env->pc;
     *cs_base = 0;
-    *flags = 0;
+    *flags = env->im;
 }
 
 static inline int cpu_mmu_index(CPUH8300State *env, bool ifetch)
@@ -193,6 +207,14 @@ static inline uint32_t h8300_cpu_pack_ccr(CPUH8300State *env)
     ccr = FIELD_DP32(ccr, CCR, V,   env->ccr_v >> 31);
     ccr = FIELD_DP32(ccr, CCR, C,   env->ccr_c);
     return ccr;
+}
+
+static inline uint32_t h8300_cpu_pack_exr(CPUH8300State *env)
+{
+    uint32_t exr = 0;
+    exr = FIELD_DP32(exr, EXR, I,  env->exr_i);
+    exr = FIELD_DP32(exr, EXR, T,  env->exr_t);
+    return exr;
 }
 
 #endif /* H8300_CPU_H */
