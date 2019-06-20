@@ -27,14 +27,17 @@
 
 static uint64_t syscr_read(void *opaque, hwaddr addr, unsigned size)
 {
-    CPUH8300State *env = (CPUH8300State *)opaque;
-    return env->syscr;
+    H83069State *s = (H83069State *)opaque;
+    
+    return deposit32(s->syscr_val, 3, 1, s->cpu.env.im);
 }
 
 static void syscr_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
 {
-    CPUH8300State *env = (CPUH8300State *)opaque;
-    env->syscr = val;
+    H83069State *s = (H83069State *)opaque;
+
+    s->syscr_val = val;
+    s->cpu.env.im = extract32(val, 3, 1);
 }
 
 static const MemoryRegionOps syscr_ops = {
@@ -119,7 +122,7 @@ static void h83069_realize(DeviceState *dev, Error **errp)
                            H83069_FLASH_SIZE, errp);
     memory_region_add_subregion(s->sysmem, H83069_FLASH_BASE, &s->flash);
     memory_region_init_io(&s->syscr, OBJECT(dev), &syscr_ops,
-                          &s->cpu.env, "h83069-syscr", 0x1);
+                          &s, "h83069-syscr", 0x1);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->syscr);
 
     if (!s->kernel) {
