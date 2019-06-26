@@ -1,5 +1,5 @@
 /*
- * H83069 MCU Object
+ * H8S2674 MCU Object
  *
  * Copyright (c) 2019 Yoshinori Sato
  *
@@ -16,56 +16,58 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HW_H8300_H83069_H
-#define HW_H8300_H83069_H
+#ifndef HW_H8300_H8S2674_H
+#define HW_H8300_H8S2674_H
 
 #include "hw/sysbus.h"
 #include "target/h8300/cpu.h"
 #include "qemu/units.h"
 #include "hw/timer/renesas_tmr.h"
+#include "hw/timer/renesas_tpu.h"
 #include "hw/char/renesas_sci.h"
-#include "hw/intc/h8300h_intc.h"
+#include "hw/intc/h8s_intc.h"
 
-#define TYPE_H83069 "h83069"
-#define TYPE_H83069_CPU H8300_CPU_TYPE_NAME(TYPE_H83069)
-#define H83069(obj) OBJECT_CHECK(H83069State, (obj), TYPE_H83069)
+#define TYPE_H8S2674 "h8s2674"
+#define TYPE_H8S2674_CPU H8300_CPU_TYPE_NAME(TYPE_H8S2674)
+#define H8S2674(obj) OBJECT_CHECK(H8S2674State, (obj), TYPE_H8S2674)
 
-typedef struct H83069State {
+typedef struct H8S2674State {
     SysBusDevice parent_obj;
 
     H8300CPU cpu;
-    RTMRState tmr[2];
+    RTMRState tmr;
     RSCIState sci[3];
-    H8300HINTCState intc;
-    uint8_t syscr_val;
+    RTPUState tpu;
+    H8SINTCState intc;
+    uint8_t intcr_val;
 
     MemoryRegion *sysmem;
-    bool kernel;
 
     MemoryRegion iram;
     MemoryRegion iomem1;
     MemoryRegion iomem2;
     MemoryRegion flash;
-    MemoryRegion syscr;
+    MemoryRegion intcr;
     uint64_t input_freq;
     qemu_irq irq[NR_IRQS];
-} H83069State;
+} H8S2674State;
 
 /*
- * H83069 Internal Memory
- * It is the value of R5F562N8.
- * Please change the size for R5F562N7.
+ * H8S2674 Internal Memory
  */
-#define H83069_IRAM_BASE 0x00ffbf20
-#define H83069_IRAM_SIZE (16 * KiB)
-#define H83069_FLASH_BASE 0
-#define H83069_FLASH_SIZE (512 * KiB)
+#define H8S2674_IRAM_BASE 0x00ff4000
+#define H8S2674_IRAM_SIZE (32 * KiB)
 
-#define H83069_SCIBASE 0xffffb0
-#define H83069_TMRBASE 0xffff80
-#define H83069_INTCBASE 0xfee014
+#define H8S2674_SCIBASE 0xffff78
+#define H8S2674_TMRBASE 0xffffb0
+#define H8S2674_TPUBASE1 0xffffd0
+#define H8S2674_TPUBASE2 0xfffe80
+#define H8S2674_TPUBASE3 0xffffc0
+#define H8S2674_INTCBASE1 0xfffe00
+#define H8S2674_INTCBASE2 0xffff30
 
-#define H83069_TMR_IRQBASE 36
-#define H83069_SCI_IRQBASE 52
+#define H8S2674_TPU_IRQBASE 40
+#define H8S2674_TMR_IRQBASE 72
+#define H8S2674_SCI_IRQBASE 88
 
 #endif

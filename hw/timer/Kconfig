@@ -67,3 +67,6 @@ config RENESAS_TMR8
 
 config RENESAS_CMT
     bool
+
+config RENESAS_TPU
+    bool
