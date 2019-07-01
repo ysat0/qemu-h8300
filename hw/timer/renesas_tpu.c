@@ -473,13 +473,13 @@ static void rtpu_init(Object *obj)
     int i;
 
     memory_region_init_io(&tpu->memory[0], OBJECT(tpu), &tpu012_ops,
-                          tpu, "renesas-tpu012", 0x100);
+                          tpu, "renesas-tpu012", 0x30);
     sysbus_init_mmio(d, &tpu->memory[0]);
     memory_region_init_io(&tpu->memory[1], OBJECT(tpu), &tpu345_ops,
-                          tpu, "renesas-tpu345", 0x180);
+                          tpu, "renesas-tpu345", 0x30);
     sysbus_init_mmio(d, &tpu->memory[1]);
     memory_region_init_io(&tpu->memory[2], OBJECT(tpu), &tpuc_ops,
-                          tpu, "renesas-tpuctl", 0x80);
+                          tpu, "renesas-tpuctl", 0x2);
     sysbus_init_mmio(d, &tpu->memory[2]);
 
     for (i = 0; i < ARRAY_SIZE(tpu->irq); i++) {
