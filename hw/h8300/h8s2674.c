@@ -105,7 +105,6 @@ static void register_tpu(H8S2674State *s)
     sysbus_mmio_map(tpu, 1, H8S2674_TPUBASE2);
     sysbus_mmio_map(tpu, 2, H8S2674_TPUBASE3);
     qdev_prop_set_uint64(DEVICE(tpu), "input-freq", s->input_freq);
-    qdev_prop_set_uint32(DEVICE(tpu), "timer-type", 1);
 
     qdev_init_nofail(DEVICE(tpu));
     for (i = 0; i < TPU_NR_IRQ; i++) {

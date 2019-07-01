@@ -50,6 +50,10 @@ static void edosk2674_init(MachineState *machine)
                            4 * MiB, &error_fatal);
     memory_region_add_subregion(sysmem, 0, from);
 
+    if (!kernel_filename) {
+        rom_add_file_fixed(bios_name, 0, 0);
+    }
+
     /* Initalize CPU */
     object_initialize_child(OBJECT(machine), "mcu", s,
                             sizeof(H8S2674State), TYPE_H8S2674,
@@ -81,8 +85,6 @@ static void edosk2674_init(MachineState *machine)
             /* Set dtb address to R1 */
             H8300CPU(first_cpu)->env.regs[0] = DRAM_BASE + 4 * MiB - dtb_size;
         }
-    } else {
-        rom_add_file_fixed(bios_name, 0, 0);
     }
 }
 
