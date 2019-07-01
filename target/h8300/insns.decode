@@ -40,7 +40,7 @@
 %imm32		0:0 !function=imm32
 %dsp16		0:0 !function=dsp16
 %dsp24		0:0 !function=dsp24
-%dsp24l		0:0 !function=dsp24l
+%dsp32		0:0 !function=dsp32
 %abs16		0:0 !function=abs16
 %abs24		0:0 !function=abs24
 %b10_er		0:0 !function=b10_er
@@ -92,7 +92,7 @@
 @b6_ers_erd	.... .... .... .... .... .... . er:3 0 r:3 &rrdsp sz=2 dsp=%dsp16
 @b6_bop		.... .... .... .... abs:s16 &bop op=%b6_bop_op ir=%b6_bop_ir sz=16
 @b10_er24	.... .... .... ... c:1 .... .... 0 r:3 .... &ldstccr ldst=%b10_ldst dsp=%dsp24
-@b10_ers_erd	.... .... .... .... .... .... . er:3 0000 &rrdsp sz=2 r=%b10_er dsp=%dsp24l
+@b10_ers_erd	.... .... .... .... .... .... . er:3 0000 &rrdsp sz=2 r=%b10_er dsp=%dsp32
 @b8_abs24	.... .... .... ... c:1 .... .... .... .... &absc abs=%abs24
 @b8_er_r	.... .... 0 er:3 .... .... .... .... r:4 &rrdsp
 @b8_er_abs	.... .... .... .... .... .... .... 0 r:3 &rabs abs=%abs24

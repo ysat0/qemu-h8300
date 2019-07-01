@@ -97,16 +97,15 @@ static uint32_t dsp24(DisasContext *ctx, int dummy)
     return dsp24;
 }
 
-static uint32_t dsp24l(DisasContext *ctx, int dummy)
+static uint32_t dsp32(DisasContext *ctx, int dummy)
 {
     CPUH8300State *env = ctx->env;
-    uint32_t dsp24;
+    uint32_t dsp32;
     uint32_t addr = ctx->pc + 6;
 
     ctx->base.pc_next = ctx->pc + 10;
-    dsp24 = cpu_ldl_code(env, addr);
-    dsp24 = deposit32(dsp24, 16, 16, sextract32(dsp24, 16, 8));
-    return dsp24;
+    dsp32 = cpu_ldl_code(env, addr);
+    return dsp32;
 }
 
 static uint32_t abs16(DisasContext *ctx, int dummy)
@@ -465,6 +464,8 @@ static bool trans_MOV_mr(DisasContext *ctx, arg_MOV_mr *a)
     TCGv mem = tcg_temp_new();
 
     tcg_gen_addi_i32(mem, cpu_regs[a->er], a->dsp);
+    if (ctx->pc == 0xb171ce)
+        printf("%08x\n", a->dsp);
     tcg_gen_qemu_ld_i32(temp, mem, 0, a->sz | MO_SIGN | MO_TE);
     switch(a->sz) {
     case SZ_B:
