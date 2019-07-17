@@ -81,8 +81,8 @@ static void edosk2674_init(MachineState *machine)
                 exit(1);
             }
             rom_add_blob_fixed("dtb", dtb, dtb_size,
-                               DRAM_BASE + 8 * MiB - dtb_size);
-            /* Set dtb address to R1 */
+                               DRAM_BASE + 4 * MiB - dtb_size);
+            /* Set dtb address to R0 */
             H8300CPU(first_cpu)->env.regs[0] = DRAM_BASE + 4 * MiB - dtb_size;
         }
     }
