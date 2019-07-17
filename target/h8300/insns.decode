@@ -510,7 +510,7 @@ MULXU		0101 0010 .... .... @b2_rs_erd sz=1
 # NEG.[BWL] Rd
 NEG		0001 0111 10.. .... @b2_r
 # NOP
-NOP		0000 0000
+NOP		0000 0000 0000 0000
 # NOT.[BWL] Rd
 NOT		0001 0111 00.. .... @b2_r
 # OR.B #xx:8,Rd
