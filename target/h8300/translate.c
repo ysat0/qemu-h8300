@@ -193,6 +193,8 @@ static int b6_bop_op(DisasContext *ctx, int imm)
     CPUH8300State *env = ctx->env;
     uint32_t addr = ctx->pc + 4;
     uint32_t inv = extract32(cpu_ldub_code(env, addr + 1), 7, 1);
+
+    ctx->base.pc_next = ctx->pc + 6;
     return (inv << 8) | cpu_ldub_code(env, addr);
 }
 
@@ -210,6 +212,7 @@ static int b8_bop_op(DisasContext *ctx, int imm)
     uint32_t addr = ctx->pc + 6;
 
     uint32_t inv = extract32(cpu_ldub_code(env, addr + 1), 7, 1);
+    ctx->base.pc_next = ctx->pc + 8;
     return (inv << 8) | cpu_ldub_code(env, addr);
 }
 
@@ -1325,7 +1328,12 @@ static bool trans_SHAR(DisasContext *ctx, arg_SHAR *a)
     reg = h8300_reg_ld(a->sz, a->r, temp);
     s = 8 * (1 << a->sz) - 1 ;
     tcg_gen_extract_i32(cpu_ccr_c, reg, a->s, 1);
-    tcg_gen_andi_i32(cpu_ccr_v, reg, 1 << (s - a->s));
+    tcg_gen_extract_i32(cpu_ccr_v, reg, s, 1);
+    tcg_gen_deposit_i32(cpu_ccr_v, cpu_ccr_v, cpu_ccr_v, s, 1);
+    if (a->s == 1) {
+        tcg_gen_deposit_i32(cpu_ccr_v, cpu_ccr_v, cpu_ccr_v, s - 1, 1);
+    }
+    tcg_gen_andi_i32(cpu_ccr_v, cpu_ccr_v, 0xfffffffe);
     tcg_gen_shri_i32(reg, reg, a->s + 1);
     tcg_gen_or_i32(reg, reg, cpu_ccr_v);
     h8300_reg_st(a->sz, a->r, reg);
@@ -1386,7 +1394,7 @@ static bool trans_ROTL(DisasContext *ctx, arg_ROTL *a)
     temp = tcg_temp_new();
     reg = h8300_reg_ld(a->sz, a->r, temp);
     s = 8 * (1 << a->sz) - 1 ;
-    tcg_gen_extract_i32(cpu_ccr_c, reg, s - a->s, a->s + 2);
+    tcg_gen_extract_i32(cpu_ccr_c, reg, s - a->s, a->s + 1);
     tcg_gen_shli_i32(reg, reg, a->s + 1);
     tcg_gen_or_i32(reg, reg, cpu_ccr_c);
     h8300_reg_st(a->sz, a->r, reg);
