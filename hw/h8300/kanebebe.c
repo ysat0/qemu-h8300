@@ -76,7 +76,7 @@ static void kanebebe_init(MachineState *machine)
             }
             rom_add_blob_fixed("dtb", dtb, dtb_size,
                                DRAM_BASE + 4 * MiB - dtb_size);
-            /* Set dtb address to R1 */
+            /* Set dtb address to R0 */
             H8300CPU(first_cpu)->env.regs[0] = DRAM_BASE + 4 * MiB - dtb_size;
         }
     }
