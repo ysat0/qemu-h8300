@@ -284,6 +284,7 @@ static void rsci_realize(DeviceState *dev, Error **errp)
     }
     qemu_chr_fe_set_handlers(&sci->chr, can_receive, receive,
                              sci_event, NULL, sci, NULL, true);
+    rsci_reset(dev);
 }
 
 static void rsci_init(Object *obj)
