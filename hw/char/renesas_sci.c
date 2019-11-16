@@ -192,7 +192,7 @@ static void sci_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
             FIELD_EX8(sci->ssr, SSR, ERR) == 0) {
             qemu_set_irq(sci->irq[ERI], 0);
         }
-        if ((sci->rev == 0) && FIELD_EX8(sci->scr, SSR, TDRE) == 0) {
+        if ((sci->rev == 0) && FIELD_EX8(sci->ssr, SSR, TDRE) == 0) {
             send_byte(sci);
         }
         break;
