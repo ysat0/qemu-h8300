@@ -62,6 +62,8 @@ static void edosk2674_init(MachineState *machine)
                              "memory", &error_abort);
     object_property_set_uint(OBJECT(s), 33333333,
                                "clock-freq", &error_abort);
+    object_property_set_uint(OBJECT(s), 2,
+                               "console", &error_abort);
     object_property_set_bool(OBJECT(s), true, "realized", &error_abort);
 
     /* Load kernel and dtb */
