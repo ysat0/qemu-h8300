@@ -23,6 +23,8 @@
 #include "hw/hw.h"
 #include "hw/sysbus.h"
 #include "hw/loader.h"
+#include "hw/block/flash.h"
+#include "hw/char/pl011.h"
 #include "hw/h8300/h8s2674.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/qtest.h"
@@ -36,19 +38,21 @@ static void edosk2674_init(MachineState *machine)
     H8S2674State *s = g_new(H8S2674State, 1);
     MemoryRegion *sysmem = get_system_memory();
     MemoryRegion *sdram = g_new(MemoryRegion, 1);
-    MemoryRegion *from = g_new(MemoryRegion, 1);
     const char *kernel_filename = machine->kernel_filename;
     const char *dtb_filename = machine->dtb;
     void *dtb = NULL;
     int dtb_size;
+    DriveInfo *dinfo;
 
     /* Allocate memory space */
     memory_region_init_ram(sdram, NULL, "sdram", 8 * MiB,
                            &error_fatal);
     memory_region_add_subregion(sysmem, DRAM_BASE, sdram);
-    memory_region_init_rom(from, NULL, "flash",
-                           4 * MiB, &error_fatal);
-    memory_region_add_subregion(sysmem, 0, from);
+    dinfo = drive_get(IF_PFLASH, 0, 0);
+    pflash_cfi01_register(0x0, "edosk2674.flash", 4 * MiB,
+                          dinfo ? blk_by_legacy_dinfo(dinfo) : NULL,
+                          128 * KiB, 2, 0x0089, 0x0016, 0x0000, 0x0000,
+                          0);
 
     if (!kernel_filename) {
         rom_add_file_fixed(bios_name, 0, 0);
