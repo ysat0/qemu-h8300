@@ -39,10 +39,10 @@
 
 %imm32		0:0 !function=imm32
 %dsp16		0:0 !function=dsp16
-%dsp24		0:0 !function=dsp24
-%dsp32		0:0 !function=dsp32
+%dsp32_4	0:0 !function=dsp32_4
+%dsp32_6	0:0 !function=dsp32_6
 %abs16		0:0 !function=abs16
-%abs24		0:0 !function=abs24
+%abs32		0:0 !function=abs32
 %b10_er		0:0 !function=b10_er
 %b10_ldst	0:0 !function=b10_ldst
 %adds		23:1 20:1 !function=adds_imm
@@ -87,15 +87,15 @@
 @b6_rd_imm	.... .... .... 0 rd:3 &rdi imm=%imm32 sz=2
 @b6_er16	.... .... .... ... c:1 .... .... . r:3 .... &rdspc dsp=%dsp16
 @b6_abs16	.... .... .... ... c:1 .... .... .... .... &absc abs=%abs16
-@b6_r_abs	.... .... .... r:4 &rabs abs=%abs24
+@b6_r_abs	.... .... .... r:4 &rabs abs=%abs32
 @b6_er_abs	.... .... .... .... .... .... .... 0 r:3 &rabs abs=%abs16
 @b6_ers_erd	.... .... .... .... .... .... . er:3 0 r:3 &rrdsp sz=2 dsp=%dsp16
 @b6_bop		.... .... .... .... abs:s16 &bop op=%b6_bop_op ir=%b6_bop_ir sz=16
-@b10_er24	.... .... .... ... c:1 .... .... 0 r:3 .... &ldstccr ldst=%b10_ldst dsp=%dsp24
-@b10_ers_erd	.... .... .... .... .... .... . er:3 0000 &rrdsp sz=2 r=%b10_er dsp=%dsp32
-@b8_abs24	.... .... .... ... c:1 .... .... .... .... &absc abs=%abs24
+@b10_er32	.... .... .... ... c:1 .... .... 0 r:3 .... &ldstccr ldst=%b10_ldst dsp=%dsp32_6
+@b10_ers_erd	.... .... .... .... .... .... . er:3 0000 &rrdsp sz=2 r=%b10_er dsp=%dsp32_6
+@b8_abs32	.... .... .... ... c:1 .... .... .... .... &absc abs=%abs32
 @b8_er_r	.... .... 0 er:3 .... .... .... .... r:4 &rrdsp
-@b8_er_abs	.... .... .... .... .... .... .... 0 r:3 &rabs abs=%abs24
+@b8_er_abs	.... .... .... .... .... .... .... 0 r:3 &rabs abs=%abs32
 @b8_bop		.... .... .... .... &bop op=%b8_bop_op ir=%b8_bop_ir abs=%b8_bop_abs sz=32
 
 # ADD.B #xx:8,Rd
@@ -394,15 +394,15 @@ LDC_i		0000 0001 0100 0001 0000 0111 .... .... @b4_c_imm
 LDC_m		0000 0001 0100 000 . 0110 1001 0... 0000 @b4_er
 # LDC @(d:16,ERs),CCR
 LDC_m		0000 0001 0100 000 . 0110 1111 0... 0000 @b6_er16
-# LDC @(d:24,ERs),CCR
-# STC CCR,@(d:24,ERd)
-LDCSTC_m	0000 0001 0100 000 . 0111 1000 .... 0000 @b10_er24
+# LDC @(d:32,ERs),CCR
+# STC CCR,@(d:32,ERd)
+LDCSTC_m	0000 0001 0100 000 . 0111 1000 .... 0000 @b10_er32
 # LDC @ERs+,CCR
 LDC_mp		0000 0001 0100 000 . 0110 1101 0... 0000 @b4_er
 # LDC @aa:16,CCR
 LDC_a		0000 0001 0100 000 . 0110 1011 0000 0000 @b6_abs16
-# LDC @aa:24,CCR
-LDC_a		0000 0001 0100 000 . 0110 1011 0010 0000 @b8_abs24
+# LDC @aa:32,CCR
+LDC_a		0000 0001 0100 000 . 0110 1011 0010 0000 @b8_abs32
 # MAC @ERn+,@ERm+
 MAC		0000 0001 0110 0000 0110 1101 0 rn:3 0 rm:3
 # MOV.B #xx:8,Rd
@@ -411,63 +411,63 @@ MOV_i		1111 .... .... .... @b2_r_imm
 MOV_mr		0110 1000 0 ... .... @b2_er_r dsp=0 sz=0
 # MOV.B @(d:16,ERs),Rd
 MOV_mr		0110 1110 0 ... .... @b2_er_r dsp=%dsp16 sz=0
-# MOV.B @(d:24,ERs),Rd
-MOV_mr		0111 1000 .... 0000 0110 1010 0010 .... @b8_er_r dsp=%dsp24 sz=0
+# MOV.B @(d:32,ERs),Rd
+MOV_mr		0111 1000 .... 0000 0110 1010 0010 .... @b8_er_r dsp=%dsp32_4 sz=0
 # MOV.B @ERs+,Rd
 MOV_mpr		0110 1100 0 ... .... @b2_er_r dsp=0 sz=0
 # MOV.B @aa:8,Rd
 MOV_ar		0010 .... .... .... @b2_r_abs sz=0 a=8
 # MOV.B @aa:16,Rd
 MOV_ar		0110 1010 0000 .... .... .... .... .... @b4_r_abs sz=0 a=16
-# MOV.B @aa:24,Rd
-MOV_ar		0110 1010 0010 .... @b6_r_abs sz=0 a=24
+# MOV.B @aa:32,Rd
+MOV_ar		0110 1010 0010 .... @b6_r_abs sz=0 a=32
 # MOV.B Rs,@ERd
 MOV_rm		0110 1000 1 ... .... @b2_er_r dsp=0 sz=0
 # MOV.B Rs,@(d:16,ERd)
 MOV_rm		0110 1110 1 ... .... @b2_er_r dsp=%dsp16 sz=0
-# MOV.B Rs,@(d:24,ERd)
-MOV_rm		0111 1000 .... 0000 0110 1010 1010 .... @b8_er_r dsp=%dsp24 sz=0
+# MOV.B Rs,@(d:32,ERd)
+MOV_rm		0111 1000 .... 0000 0110 1010 1010 .... @b8_er_r dsp=%dsp32_4 sz=0
 # MOV.B Rs,@-ERd
 MOV_rmp		0110 1100 1 ... .... @b2_er_r dsp=0 sz=0
 # MOV.B Rs,@aa:8
 MOV_ra		0011 .... .... .... @b2_r_abs sz=0 a=8
 # MOV.B Rs,@aa:16
 MOV_ra		0110 1010 1000 .... .... .... .... .... @b4_r_abs sz=0 a=16
-# MOV.B Rs,@aa:24
-MOV_ra		0110 1010 1010 .... @b6_r_abs sz=0 a=24
+# MOV.B Rs,@aa:32
+MOV_ra		0110 1010 1010 .... @b6_r_abs sz=0 a=32
 # MOV.W #xx:16,Rd
 MOV_i		0111 1001 0000 .... .... .... .... .... @b4_rd_imm
 # MOV.W @ERs,Rd
 MOV_mr		0110 1001 0 ... .... @b2_er_r dsp=0 sz=1
 # MOV.W @(d:16,ERs),Rd
 MOV_mr		0110 1111 0 ... .... @b2_er_r dsp=%dsp16 sz=1
-# MOV.W @(d:24,ERs),Rd
-MOV_mr		0111 1000 .... 0000 0110 1011 0010 .... @b8_er_r dsp=%dsp24 sz=1
+# MOV.W @(d:32,ERs),Rd
+MOV_mr		0111 1000 .... 0000 0110 1011 0010 .... @b8_er_r dsp=%dsp32_4 sz=1
 # MOV.W @ERs+,Rd
 MOV_mpr		0110 1101 0 ... .... @b2_er_r dsp=0 sz=1
 # MOV.W @aa:16,Rd
 MOV_ar		0110 1011 0000 .... .... .... .... .... @b4_r_abs sz=1 a=16
-# MOV.W @aa:24,Rd
-MOV_ar		0110 1011 0010 .... @b6_r_abs sz=1 a=24
+# MOV.W @aa:32,Rd
+MOV_ar		0110 1011 0010 .... @b6_r_abs sz=1 a=32
 # MOV.W Rs,@ERd
 MOV_rm		0110 1001 1 ... .... @b2_er_r dsp=0 sz=1
 # MOV.W Rs,@(d:16,ERd)
 MOV_rm		0110 1111 1 ... .... @b2_er_r dsp=%dsp16 sz=1
-# MOV.W Rs,@(d:24,ERd)
-MOV_rm		0111 1000 .... 0000 0110 1011 1010 .... @b8_er_r dsp=%dsp24 sz=1
+# MOV.W Rs,@(d:32,ERd)
+MOV_rm		0111 1000 .... 0000 0110 1011 1010 .... @b8_er_r dsp=%dsp32_4 sz=1
 # MOV.W Rs,@-ERd
 MOV_rmp		0110 1101 1 ... .... @b2_er_r dsp=0 sz=1
 # MOV.W Rs,@aa:16
 MOV_ra		0110 1011 1000 .... .... .... .... .... @b4_r_abs sz=1 a=16
-# MOV.W Rs,@aa:24
-MOV_ra		0110 1011 1010 .... @b6_r_abs sz=1 a=24
+# MOV.W Rs,@aa:32
+MOV_ra		0110 1011 1010 .... @b6_r_abs sz=1 a=32
 # MOV.L #xx:32,Rd
 MOV_i		0111 1010 0000 .... @b6_rd_imm
 # MOV.L @ERs,ERd
 MOV_mr		0000 0001 0000 0000 0110 1001 0 ... .... @b4_ers_erd_d
 # MOV.L @(d:16,ERs),ERd
 MOV_mr		0000 0001 0000 0000 0110 1111 0 ... .... @b6_ers_erd
-# MOV.L @(d:24,ERs),ERd
+# MOV.L @(d:32,ERs),ERd
 MOV_mr		0000 0001 0000 0000 0111 1000 0 ... .... @b10_ers_erd
 # MOV.L @ERs+,ERd
 # LDM @SP+,ERn-ERn
@@ -477,13 +477,13 @@ MOV_mr		0000 0001 0000 0000 0111 1000 0 ... .... @b10_ers_erd
 }
 # MOV.L @aa:16,ERd
 MOV_ar		0000 0001 0000 0000 0110 1011 0000 .... @b6_er_abs sz=2 a=16
-# MOV.L @aa:24,ERd
-MOV_ar		0000 0001 0000 0000 0110 1011 0010 .... @b8_er_abs sz=2 a=24
+# MOV.L @aa:32,ERd
+MOV_ar		0000 0001 0000 0000 0110 1011 0010 .... @b8_er_abs sz=2 a=32
 # MOV.L ERs,@ERd
 MOV_rm		0000 0001 0000 0000 0110 1001 1 ... .... @b4_ers_erd_d
 # MOV.L ERs,@(d:16,ERd)
 MOV_rm		0000 0001 0000 0000 0110 1111 1 ... .... @b6_ers_erd
-# MOV.L ERs,@(d:24,ERd)
+# MOV.L ERs,@(d:32,ERd)
 MOV_rm		0000 0001 0000 0000 0111 1000 1 ... .... @b10_ers_erd
 # MOV.L ERs,@-ERd
 # STM ERn-ERm,@-sp
@@ -493,8 +493,8 @@ MOV_rm		0000 0001 0000 0000 0111 1000 1 ... .... @b10_ers_erd
 }
 # MOV.L ERs,@aa:16
 MOV_ra		0000 0001 0000 0000 0110 1011 1000 .... @b6_er_abs sz=2 a=16
-# MOV.L ERs,@aa:24
-MOV_ra		0000 0001 0000 0000 0110 1011 1010 .... @b8_er_abs sz=2 a=24
+# MOV.L ERs,@aa:32
+MOV_ra		0000 0001 0000 0000 0110 1011 1010 .... @b8_er_abs sz=2 a=32
 # MOVFPE @aa:16,Rd
 MOVFPE	 	0110 1010 0100 .... .... .... .... .... @b4_r_abs a=16 sz=0
 # MOVTPE Rs,@aa:16
@@ -566,8 +566,8 @@ STC_m		0000 0001 0100 000 . 0110 1111 1 ... 0000 @b6_er16
 STC_mp	        0000 0001 0100 000 . 0110 1101 1 ... 0000 @b4_er
 # STC CCR,@aa:16
 STC_a		0000 0001 0100 000 . 0110 1011 1000 0000 @b6_abs16
-# STC CCR,@aa:24
-STC_a		0000 0001 0100 000 . 0110 1011 1010 0000 @b8_abs24
+# STC CCR,@aa:32
+STC_a		0000 0001 0100 000 . 0110 1011 1010 0000 @b8_abs32
 # SUB.W #xx:16,Rd
 SUB_i		0111 1001 0011 .... .... .... .... .... @b4_rd_imm
 # SUB.L #xx:32,ERd
