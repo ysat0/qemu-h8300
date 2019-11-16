@@ -49,6 +49,7 @@ typedef struct H8S2674State {
     MemoryRegion flash;
     MemoryRegion intcr;
     uint64_t input_freq;
+    uint32_t sci_con;
     qemu_irq irq[NR_IRQS];
 } H8S2674State;
 

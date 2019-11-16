@@ -123,7 +123,7 @@ static void register_sci(H8S2674State *s, int unit)
 
     sci = SYS_BUS_DEVICE(&s->sci[unit]);
     sysbus_mmio_map(sci, 0, H8S2674_SCIBASE + unit * 0x08);
-    qdev_prop_set_chr(DEVICE(sci), "chardev", serial_hd(unit));
+    qdev_prop_set_chr(DEVICE(sci), "chardev", serial_hd(0));
     qdev_prop_set_uint64(DEVICE(sci), "input-freq", s->input_freq);
     qdev_prop_set_uint32(DEVICE(sci), "rev", 0);
 
@@ -152,7 +152,7 @@ static void h8s2674_realize(DeviceState *dev, Error **errp)
     register_intc(s);
     s->cpu.env.ack = qdev_get_gpio_in_named(DEVICE(&s->intc), "ack", 0);
     register_tmr(s);
-    register_sci(s, 0);
+    register_sci(s, s->sci_con);
     register_tpu(s);
 }
 
@@ -160,6 +160,7 @@ static Property h8s2674_properties[] = {
     DEFINE_PROP_LINK("memory", H8S2674State, sysmem, TYPE_MEMORY_REGION,
                      MemoryRegion *),
     DEFINE_PROP_UINT64("clock-freq", H8S2674State, input_freq, 0),
+    DEFINE_PROP_UINT32("console", H8S2674State, sci_con, 0),
     DEFINE_PROP_END_OF_LIST(),
 };
 
