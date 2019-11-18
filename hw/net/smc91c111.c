@@ -9,25 +9,20 @@
 
 #include "qemu/osdep.h"
 #include "hw/sysbus.h"
-#include "migration/vmstate.h"
 #include "net/net.h"
-#include "hw/irq.h"
 #include "hw/net/smc91c111.h"
-#include "hw/qdev-properties.h"
-#include "qapi/error.h"
 #include "qemu/log.h"
-#include "qemu/module.h"
 /* For crc32 */
 #include <zlib.h>
-#include "qom/object.h"
 
 /* Number of 2k memory pages available.  */
+#define NUM_PACKETS_96 3
 #define NUM_PACKETS 4
 
 #define TYPE_SMC91C111 "smc91c111"
-OBJECT_DECLARE_SIMPLE_TYPE(smc91c111_state, SMC91C111)
+#define SMC91C111(obj) OBJECT_CHECK(smc91c111_state, (obj), TYPE_SMC91C111)
 
-struct smc91c111_state {
+typedef struct {
     SysBusDevice parent_obj;
 
     NICState *nic;
@@ -55,8 +50,9 @@ struct smc91c111_state {
     uint8_t data[NUM_PACKETS][2048];
     uint8_t int_level;
     uint8_t int_mask;
+    uint32_t type;
     MemoryRegion mmio;
-};
+} smc91c111_state;
 
 static const VMStateDescription vmstate_smc91c111 = {
     .name = "smc91c111",
@@ -132,16 +128,17 @@ static void smc91c111_update(smc91c111_state *s)
     qemu_set_irq(s->irq, level);
 }
 
-static bool smc91c111_can_receive(smc91c111_state *s)
+static int smc91c111_can_receive(smc91c111_state *s)
 {
+    int num_packets = (s->type ? 3 : 4);
     if ((s->rcr & RCR_RXEN) == 0 || (s->rcr & RCR_SOFT_RST)) {
-        return true;
+        return 1;
     }
-    if (s->allocated == (1 << NUM_PACKETS) - 1 ||
-        s->rx_fifo_len == NUM_PACKETS) {
-        return false;
+    if (s->allocated == (1 << num_packets) - 1 ||
+        s->rx_fifo_len == num_packets) {
+        return 0;
     }
-    return true;
+    return 1;
 }
 
 static inline void smc91c111_flush_queued_packets(smc91c111_state *s)
@@ -155,11 +152,12 @@ static inline void smc91c111_flush_queued_packets(smc91c111_state *s)
 static int smc91c111_allocate_packet(smc91c111_state *s)
 {
     int i;
-    if (s->allocated == (1 << NUM_PACKETS) - 1) {
+    int num_packets = (s->type ? 3 : 4);
+    if (s->allocated == (1 << num_packets) - 1) {
         return 0x80;
     }
 
-    for (i = 0; i < NUM_PACKETS; i++) {
+    for (i = 0; i < num_packets; i++) {
         if ((s->allocated & (1 << i)) == 0)
             break;
     }
@@ -223,6 +221,7 @@ static void smc91c111_do_tx(smc91c111_state *s)
     int len;
     int control;
     int packetnum;
+    int num_packets;
     uint8_t *p;
 
     if ((s->tcr & TCR_TXEN) == 0)
@@ -265,10 +264,11 @@ static void smc91c111_do_tx(smc91c111_state *s)
             }
         }
 #endif
+        num_packets = (s->type ? 3 : 4);
         if (s->ctr & CTR_AUTO_RELEASE)
             /* Race?  */
             smc91c111_release_packet(s, packetnum);
-        else if (s->tx_fifo_done_len < NUM_PACKETS)
+        else if (s->tx_fifo_done_len < num_packets)
             s->tx_fifo_done[s->tx_fifo_done_len++] = packetnum;
         qemu_send_packet(qemu_get_queue(s->nic), p, len);
     }
@@ -279,7 +279,8 @@ static void smc91c111_do_tx(smc91c111_state *s)
 /* Add a packet to the TX FIFO.  */
 static void smc91c111_queue_tx(smc91c111_state *s, int packet)
 {
-    if (s->tx_fifo_len == NUM_PACKETS)
+    int num_packets = (s->type ? 3 : 4);
+    if (s->tx_fifo_len == num_packets)
         return;
     s->tx_fifo[s->tx_fifo_len++] = packet;
     smc91c111_do_tx(s);
@@ -524,7 +525,7 @@ static uint32_t smc91c111_readb(void *opaque, hwaddr offset)
             /* Not implemented.  */
             return 0;
         case 8: /* Memory size.  */
-            return NUM_PACKETS;
+            return (s->type ? 3 : 4);
         case 9: /* Free memory available.  */
             {
                 int i;
@@ -624,7 +625,7 @@ static uint32_t smc91c111_readb(void *opaque, hwaddr offset)
         case 9:
             return 0x33;
         case 10: /* Revision.  */
-            return 0x91;
+            return s->type ? 0x46 : 0x91;
         case 11:
             return 0x33;
         case 12:
@@ -669,7 +670,7 @@ static void smc91c111_writefn(void *opaque, hwaddr addr,
     }
 }
 
-static bool smc91c111_can_receive_nc(NetClientState *nc)
+static int smc91c111_can_receive_nc(NetClientState *nc)
 {
     smc91c111_state *s = qemu_get_nic_opaque(nc);
 
@@ -694,7 +695,7 @@ static ssize_t smc91c111_receive(NetClientState *nc, const uint8_t *buf, size_t 
     else
         packetsize = (size & ~1);
     packetsize += 6;
-    crc = (s->rcr & RCR_STRIP_CRC) == 0;
+    crc = (s->type == 0) && ((s->rcr & RCR_STRIP_CRC) == 0);
     if (crc)
         packetsize += 4;
     /* TODO: Flag overrun and receive errors.  */
@@ -790,6 +791,7 @@ static void smc91c111_realize(DeviceState *dev, Error **errp)
 
 static Property smc91c111_properties[] = {
     DEFINE_NIC_PROPERTIES(smc91c111_state, conf),
+    DEFINE_PROP_UINT32("chiptype", smc91c111_state, type, 0),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -800,7 +802,7 @@ static void smc91c111_class_init(ObjectClass *klass, void *data)
     dc->realize = smc91c111_realize;
     dc->reset = smc91c111_reset;
     dc->vmsd = &vmstate_smc91c111;
-    device_class_set_props(dc, smc91c111_properties);
+    dc->props = smc91c111_properties;
 }
 
 static const TypeInfo smc91c111_info = {
@@ -823,10 +825,25 @@ void smc91c111_init(NICInfo *nd, uint32_t base, qemu_irq irq)
     SysBusDevice *s;
 
     qemu_check_nic_model(nd, "smc91c111");
-    dev = qdev_new(TYPE_SMC91C111);
+    dev = qdev_create(NULL, TYPE_SMC91C111);
     qdev_set_nic_properties(dev, nd);
+    qdev_init_nofail(dev);
     s = SYS_BUS_DEVICE(dev);
-    sysbus_realize_and_unref(s, &error_fatal);
+    sysbus_mmio_map(s, 0, base);
+    sysbus_connect_irq(s, 0, irq);
+}
+
+void smc91c96_init(NICInfo *nd, uint32_t base, qemu_irq irq)
+{
+    DeviceState *dev;
+    SysBusDevice *s;
+
+    qemu_check_nic_model(nd, "smc91c111");
+    dev = qdev_create(NULL, TYPE_SMC91C111);
+    qdev_set_nic_properties(dev, nd);
+    qdev_prop_set_uint32(dev, "chiptype", 1);
+    qdev_init_nofail(dev);
+    s = SYS_BUS_DEVICE(dev);
     sysbus_mmio_map(s, 0, base);
     sysbus_connect_irq(s, 0, irq);
 }
