@@ -22,3 +22,4 @@ config H8300_EDOSK2674
     bool
     select H8S2674
     select PFLASH_CFI01
+    select SMC91C111
