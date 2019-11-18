@@ -24,7 +24,7 @@
 #include "hw/sysbus.h"
 #include "hw/loader.h"
 #include "hw/block/flash.h"
-#include "hw/char/pl011.h"
+#include "hw/net/smc91c111.h"
 #include "hw/h8300/h8s2674.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/qtest.h"
@@ -69,6 +69,8 @@ static void edosk2674_init(MachineState *machine)
     object_property_set_uint(OBJECT(s), 2,
                                "console", &error_abort);
     object_property_set_bool(OBJECT(s), true, "realized", &error_abort);
+
+    smc91c96_init(&nd_table[0], 0xf80000, s->irq[16]);
 
     /* Load kernel and dtb */
     if (kernel_filename) {
