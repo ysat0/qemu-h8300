@@ -43,9 +43,9 @@ REG16(ITSR, 22)
 REG16(SSIER, 24)
 REG16(ISCRH, 26)
 REG16(ISCRL, 28)
-
-REG16(IER, 0)
-REG16(ISR, 2)
+REG8(INTCR, 1)
+REG16(IER, 2)
+REG16(ISR, 4)
 
 static inline int pri(H8SINTCState *intc, int irq)
 {
@@ -54,7 +54,6 @@ static inline int pri(H8SINTCState *intc, int irq)
         -1, -1, -1, -1, -1, -1, -1, -1,
          3,  2,  1,  0,  7,  6,  5,  4,
         11, 10,  9,  8, 15, 14, 13, 12,
-        19, 18, 17, 16, 23, 23, 22, 22,
         19, 18, 17, 16, 23, 23, 22, 22,
         21, 21, 21, 21, 21, 21, 21, 21,
         20, 20, 20, 20, 27, 27, 27, 27,
@@ -69,7 +68,7 @@ static inline int pri(H8SINTCState *intc, int irq)
         40, 40, 40, 40, 40, 40, 40, 40,
     };
     if (primap[irq] > 0) {
-        return extract16(intc->ipr[primap[irq] / 4], primap[irq] % 4, 2);
+        return extract16(intc->ipr[primap[irq] / 4], (primap[irq] % 4) * 4, 4);
     } else {
         qemu_log_mask(LOG_GUEST_ERROR, "h8s_intc: Undedind irq %d\n", irq);
         return -1;
@@ -92,40 +91,45 @@ static inline void set_pending(H8SINTCState *s, int irq, int req)
     s->req[index] = deposit64(s->req[index], offset, 1, req);
 }
 
+static inline int trigger_mode(H8SINTCState *intc, int no)
+{
+    switch (no) {
+    case 16 ... 32:
+        return extract32(intc->iscr, (no - 16) * 2, 2);
+    case 72 ... 79:
+        return 2;
+    default:
+        return 0;
+    }
+}
 
 static void h8sintc_set_irq(void *opaque, int n_IRQ, int level)
 {
     H8SINTCState *intc = opaque;
     bool enable = true;
-    int ext;
-    int trigger = 0;
 
     if (n_IRQ >= NR_IRQS) {
         error_report("%s: IRQ %d out of range", __func__, n_IRQ);
         return;
     }
 
-    ext = ext_no(n_IRQ);
-    if (ext > 0) {
-        trigger = extract32(intc->iscr, ext * 2, 2);
-        switch (trigger) {
-        case 0: /* Level */
-            enable = (level == 0);
-            break;
-        case 1: /* Neg */
-            enable = (intc->last_level[ext] == 1 && level == 0);
-            break;
-        case 2: /* Pos */
-            enable = (intc->last_level[ext] == 0 && level == 1);
-            break;
-        case 3: /* Both */
-            enable = (intc->last_level[ext] != level);
-            break;
-        }
-        intc->last_level[ext] = level;
-        enable = enable && extract16(intc->ier, ext, 1);
-    } else {
-        enable = (level != 0);
+    switch (trigger_mode(intc, n_IRQ)) {
+    case 0: /* Level */
+        enable = (level == 0);
+        break;
+    case 1: /* Neg */
+        enable = (intc->last_level[n_IRQ] == 1 && level == 0);
+        break;
+    case 2: /* Pos */
+        enable = (intc->last_level[n_IRQ] == 0 && level == 1);
+        break;
+    case 3: /* Both */
+        enable = (intc->last_level[n_IRQ] != level);
+        break;
+    }
+    intc->last_level[n_IRQ] = level;
+    if (ext_no(n_IRQ) >= 0) {
+        enable = enable && extract16(intc->ier, ext_no(n_IRQ), 1);
     }
     if (enable) {
         set_pending(intc, n_IRQ, 1);
@@ -134,7 +138,7 @@ static void h8sintc_set_irq(void *opaque, int n_IRQ, int level)
             qemu_set_irq(intc->irq, (pri(intc, n_IRQ) << 8) | n_IRQ);
         }
     } else {
-        if (ext == -1 || trigger == 0) {
+        if (trigger_mode(intc, n_IRQ) == 0) {
             set_pending(intc, n_IRQ, 0);
             if (atomic_read(&intc->req_irq) == n_IRQ) {
                 atomic_set(&intc->req_irq, -1);
@@ -148,6 +152,7 @@ static void h8sintc_ack_irq(void *opaque, int no, int level)
 {
     H8SINTCState *intc = opaque;
     int i;
+    int base;
     int n_IRQ;
     int max_pri;
     int ext;
@@ -157,6 +162,9 @@ static void h8sintc_ack_irq(void *opaque, int no, int level)
         return;
     }
     atomic_set(&intc->req_irq, -1);
+    if (level == 0) {
+        return;
+    }
     set_pending(intc, n_IRQ, 0);
     ext = ext_no(n_IRQ);
     if (ext >= 0 && (extract32(intc->iscr, ext * 2, 2) > 0)) {
@@ -165,15 +173,20 @@ static void h8sintc_ack_irq(void *opaque, int no, int level)
         
     max_pri = 0;
     n_IRQ = -1;
-    i = 0;
+    base = i = 0;
     do {
-        i =  find_next_bit(&intc->req[i / 64], 64, i % 64);
-        if (i < NR_IRQS && pri(intc, i) > max_pri) {
-            n_IRQ = i;
-            max_pri = pri(intc, i);
+        i =  find_next_bit(&intc->req[base / 64], 64, i);
+        if (i < 64) {
+            if (pri(intc, base + i) > max_pri) {
+                n_IRQ = base + i;
+                max_pri = pri(intc, base + i);
+            }
+            i++;
+        } else {
+            base += 64;
+            i = 0;
         }
-        i++;
-    } while (i < NR_IRQS);
+    } while (base < NR_IRQS);
 
     if (n_IRQ >= 0) {
         atomic_set(&intc->req_irq, n_IRQ);
@@ -200,7 +213,7 @@ static uint64_t intc_ipr_read(void *opaque, hwaddr addr, unsigned size)
     H8SINTCState *intc = opaque;
     switch(addr) {
     case A_IPRA ... A_IPRK:
-        return intc->ipr[addr];
+        return intc->ipr[addr >> 1];
     case A_ITSR:
         return intc->itsr;
     case A_SSIER:
@@ -223,7 +236,7 @@ static void intc_ipr_write(void *opaque, hwaddr addr, uint64_t val,
     H8SINTCState *intc = opaque;
     switch(addr) {
     case A_IPRA ... A_IPRK:
-        intc->ipr[addr] = val;
+        intc->ipr[addr >> 1] = val;
         break;
     case A_ITSR:
         intc->itsr = val;
@@ -257,6 +270,8 @@ static uint64_t intc_isr_read(void *opaque, hwaddr addr, unsigned size)
 {
     H8SINTCState *intc = opaque;
     switch(addr) {
+    case A_INTCR:
+        return intc->intcr;
     case A_IER:
         return intc->ier;
     case A_ISR:
@@ -274,6 +289,14 @@ static void intc_isr_write(void *opaque, hwaddr addr, uint64_t val,
 {
     H8SINTCState *intc = opaque;
     switch(addr) {
+    case A_INTCR:
+        intc->intcr = val;
+        *(uint32_t *)(intc->im) = extract32(val, 4, 2);
+        if (*(uint32_t *)(intc->im) > 2) {
+            qemu_log_mask(LOG_GUEST_ERROR, "h8s_intc: Invalid INTM %d\n",
+                          *(uint32_t *)(intc->im));
+        }
+        break;
     case A_IER:
         intc->ier = val;
         break;
@@ -293,6 +316,7 @@ static const MemoryRegionOps intc_isr_ops = {
     .read  = intc_isr_read,
     .endianness = DEVICE_NATIVE_ENDIAN,
     .impl = {
+        .min_access_size = 1,
         .max_access_size = 2,
     },
 };
@@ -330,10 +354,16 @@ static const VMStateDescription vmstate_h8sintc = {
     }
 };
 
+static Property h8sintc_properties[] = {
+    DEFINE_PROP_PTR("cpu-im", H8SINTCState, im),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
 static void h8sintc_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
+    dc->props = h8sintc_properties;
     dc->realize = h8sintc_realize;
     dc->vmsd = &vmstate_h8sintc;
 }
