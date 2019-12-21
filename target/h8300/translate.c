@@ -1920,6 +1920,14 @@ static bool trans_BXOR_a(DisasContext *ctx, arg_BXOR_a *a)
 
 static bool trans_BOP1(DisasContext *ctx, arg_BOP1 *a)
 {
+    arg_BCLR_ia	bclr_i;
+    arg_BCLR_ra	bclr_r;
+    arg_BNOT_ia	bnot_i;
+    arg_BNOT_ra	bnot_r;
+    arg_BTST_ia	btst_i;
+    arg_BTST_ra	btst_r;
+    arg_BSET_ia	bset_i;
+    arg_BSET_ra	bset_r;
     arg_BAND_a  band_a;
     arg_BIAND_a biand_a;
     arg_BLD_a   bld_a;
@@ -1932,6 +1940,38 @@ static bool trans_BOP1(DisasContext *ctx, arg_BOP1 *a)
     arg_BIXOR_a bixor_a;
     
     switch(a->op) {
+    case 0x70:
+        bset_i.imm = a->ir;
+        bset_i.abs = a->abs;
+        return trans_BSET_ia(ctx, &bset_i);
+    case 0x60:
+        bset_r.rn = a->ir;
+        bset_r.abs = a->abs;
+        return trans_BSET_ra(ctx, &bset_r);
+    case 0x71:
+        bnot_i.imm = a->ir;
+        bnot_i.abs = a->abs;
+        return trans_BNOT_ia(ctx, &bnot_i);
+    case 0x61:
+        bnot_r.rn = a->ir;
+        bnot_r.abs = a->abs;
+        return trans_BNOT_ra(ctx, &bnot_r);
+    case 0x72:
+        bclr_i.imm = a->ir;
+        bclr_i.abs = a->abs;
+        return trans_BCLR_ia(ctx, &bclr_i);
+    case 0x62:
+        bclr_r.rn = a->ir;
+        bclr_r.abs = a->abs;
+        return trans_BCLR_ra(ctx, &bclr_r);
+    case 0x73:
+        btst_i.imm = a->ir;
+        btst_i.abs = a->abs;
+        return trans_BTST_ia(ctx, &btst_i);
+    case 0x63:
+        btst_r.rn = a->ir;
+        btst_r.abs = a->abs;
+        return trans_BTST_ra(ctx, &btst_r);
     case 0x76:
         band_a.imm = a->ir;
         band_a.abs = a->abs;
@@ -2492,23 +2532,26 @@ static bool trans_RTS(DisasContext *ctx, arg_RTS *a)
 
 static bool trans_RTE(DisasContext *ctx, arg_RTE *a)
 {
-    TCGv ccr, reg;
-    ccr = tcg_temp_new();
+    TCGv temp1, temp2, reg;
+    temp1 = tcg_temp_new();
+    temp2 = tcg_temp_new();
     reg = tcg_temp_new();
     if (ctx->base.tb->flags == 2) {
-        tcg_gen_qemu_ld_i32(ccr, cpu_sp, 0, MO_16 | MO_TE);
+        tcg_gen_qemu_ld_i32(temp1, cpu_sp, 0, MO_16 | MO_TE);
         tcg_gen_addi_i32(cpu_sp, cpu_sp, 2);
-        tcg_gen_extract_i32(ccr, ccr, 8, 8);
+        tcg_gen_extract_i32(temp2, temp1, 8, 8);
         tcg_gen_movi_i32(reg, 1);
-        gen_helper_set_ccr(cpu_env, reg, ccr);
+        gen_helper_set_ccr(cpu_env, reg, temp2);
     }
-    tcg_gen_qemu_ld_i32(ccr, cpu_sp, 0, MO_32 | MO_TE);
+    tcg_gen_qemu_ld_i32(temp1, cpu_sp, 0, MO_32 | MO_TE);
     tcg_gen_addi_i32(cpu_sp, cpu_sp, 4);
-    tcg_gen_extract_i32(cpu_pc, ccr, 0, 24);
-    tcg_gen_extract_i32(ccr, ccr, 24, 8);
-    gen_helper_set_ccr(cpu_env, reg, ccr);
+    tcg_gen_extract_i32(cpu_pc, temp1, 0, 24);
+    tcg_gen_extract_i32(temp2, temp1, 24, 8);
+    tcg_gen_movi_i32(reg, 0);
+    gen_helper_set_ccr(cpu_env, reg, temp2);
     ctx->base.is_jmp = DISAS_EXIT;
-    tcg_temp_free(ccr);
+    tcg_temp_free(temp1);
+    tcg_temp_free(temp2);
     tcg_temp_free(reg);
     return true;
 }

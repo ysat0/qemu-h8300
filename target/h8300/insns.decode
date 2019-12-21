@@ -146,6 +146,14 @@ BAND_r		0111 0110 0... .... @b2_bop_r
 BAND_m		0111 1100 .... 0000 0111 0110 0 ... 0000 @b4_bop_m
 # BAND #xx:3,@aa:8
 BAND_a		0111 1110 .... .... 0111 0110 0 ... 0000 @b4_bop_a
+# BCLR #xx:3,@aa:16
+# BCLR Rn,@aa:16
+# BNOT #xx:3,@aa:16
+# BNOT Rn,@aa:16
+# BTST #xx:3,@aa:16
+# BTST Rn,@aa:16
+# BSET #xx:3,@aa:16
+# BSET Rn,@aa:16
 # BAND #xx:3,@aa:16
 # BIAND #xx:3,@aa:16
 # BILD #xx:3,@aa:16
@@ -157,6 +165,14 @@ BAND_a		0111 1110 .... .... 0111 0110 0 ... 0000 @b4_bop_a
 # BST #xx:3,@aa:16
 # BXOR #xx:3,@aa:16
 BOP1		0110 1010 0001 0000 .... .... .... .... @b6_bop
+# BCLR #xx:3,@aa:32
+# BCLR Rn,@aa:32
+# BNOT #xx:3,@aa:32
+# BNOT Rn,@aa:32
+# BTST #xx:3,@aa:32
+# BTST Rn,@aa:32
+# BSET #xx:3,@aa:32
+# BSET Rn,@aa:32
 # BAND #xx:3,@aa:32
 # BIAND #xx:3,@aa:32
 # BILD #xx:3,@aa:32
