@@ -72,7 +72,7 @@ void h8300_cpu_do_interrupt(CPUState *cs)
     if (do_irq) {
         env->pc = cpu_ldl_all(env, env->ack_irq * 4);
         cs->interrupt_request &= ~CPU_INTERRUPT_HARD;
-        qemu_set_irq(env->ack, env->ack_irq);
+        qemu_set_irq(env->ack, 1);
         qemu_log_mask(CPU_LOG_INT,
                       "interrupt 0x%02x raised\n", env->ack_irq);
     } else {
@@ -88,13 +88,13 @@ bool h8300_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 
     switch(env->im) {
     case 0:
-        pri = 8 * env->ccr_i;
+        pri = env->ccr_i << 3;
         break;
     case 1:
         pri = (env->ccr_i << 1 | env->ccr_ui);
         break;
     case 2:
-        pri = env->exr_i;
+        pri = (env->exr_i | env->ccr_i << 3) + 1;
         break;
     }
     if ((interrupt_request & CPU_INTERRUPT_HARD) &&
@@ -102,8 +102,10 @@ bool h8300_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
         env->ack_irq = env->req_irq;
         h8300_cpu_do_interrupt(cs);
         return true;
+    } else {
+        qemu_set_irq(env->ack, 0);
+        return false;
     }
-    return false;
 }
 
 hwaddr h8300_cpu_get_phys_page_debug(CPUState *cs, vaddr addr)
