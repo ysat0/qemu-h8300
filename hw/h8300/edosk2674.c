@@ -33,6 +33,18 @@
 
 #define DRAM_BASE 0x00400000
 
+static void setup_vector(unsigned int base)
+{
+    uint32_t rom_vec[128];
+    int i;
+
+    for (i = 0; i < ARRAY_SIZE(rom_vec); i++) {
+        rom_vec[i] = cpu_to_be32(base + i * 4);
+    }
+    rom_add_blob_fixed("vector", rom_vec, sizeof(rom_vec), 0x000000);
+}
+
+
 static void edosk2674_init(MachineState *machine)
 {
     H8S2674State *s = g_new(H8S2674State, 1);
@@ -76,6 +88,7 @@ static void edosk2674_init(MachineState *machine)
     if (kernel_filename) {
         h8300_load_image(H8300CPU(first_cpu), kernel_filename,
                       DRAM_BASE + 4 * MiB, 4 * MiB);
+        setup_vector(0xffc000 - 0x200);
         if (dtb_filename) {
             dtb = load_device_tree(dtb_filename, &dtb_size);
             if (dtb == NULL) {

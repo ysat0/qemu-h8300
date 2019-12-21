@@ -61,6 +61,7 @@ static void register_intc(H8S2674State *s)
     intc = SYS_BUS_DEVICE(&s->intc);
     sysbus_mmio_map(intc, 0, H8S2674_INTCBASE1);
     sysbus_mmio_map(intc, 1, H8S2674_INTCBASE2);
+    qdev_prop_set_ptr(DEVICE(intc), "cpu-im", &s->cpu.env.im);
 
     for (i = 0; i < NR_IRQS; i++) {
         s->irq[i] = qdev_get_gpio_in(DEVICE(intc), i);
@@ -141,7 +142,7 @@ static void h8s2674_realize(DeviceState *dev, Error **errp)
     memory_region_init_ram(&s->iram, NULL, "iram", H8S2674_IRAM_SIZE, errp);
     memory_region_add_subregion(s->sysmem, H8S2674_IRAM_BASE, &s->iram);
     memory_region_init_io(&s->intcr, OBJECT(dev), &intcr_ops,
-                          &s, "h8s2674-intcr", 0x1);
+                          &s, "h8s2674-intcr", H8S2674_INTCBASE2);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->intcr);
 
     object_initialize_child(OBJECT(s), "cpu", &s->cpu,
