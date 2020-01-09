@@ -113,6 +113,9 @@ static void h8sintc_set_irq(void *opaque, int n_IRQ, int level)
         return;
     }
 
+    if (ext_no(n_IRQ) >= 0) {
+        level = !level;
+    }
     switch (trigger_mode(intc, n_IRQ)) {
     case 0: /* Level */
         enable = (level == 0);
