@@ -40,7 +40,6 @@ typedef struct H83069State {
     uint8_t syscr_val;
 
     MemoryRegion *sysmem;
-    bool kernel;
 
     MemoryRegion iram;
     MemoryRegion iomem1;
@@ -48,6 +47,7 @@ typedef struct H83069State {
     MemoryRegion flash;
     MemoryRegion syscr;
     uint64_t input_freq;
+    uint32_t sci_con;
     qemu_irq irq[NR_IRQS];
 } H83069State;
 
