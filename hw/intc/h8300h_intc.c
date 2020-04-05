@@ -59,10 +59,10 @@ static inline int pri(H8300HINTCState *intc, int irq)
 
 static inline int ext_no(int irq)
 {
-    if (irq < 7 || irq > 12) {
+    if (irq < 12 || irq > 17) {
         return -1;
     }
-    return irq - 7;
+    return irq - 12;
 }
 
 static void h8300hintc_set_irq(void *opaque, int n_IRQ, int level)
