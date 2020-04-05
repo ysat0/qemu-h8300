@@ -102,7 +102,7 @@ static void register_sci(H83069State *s, int unit)
 
     sci = SYS_BUS_DEVICE(&s->sci[unit]);
     sysbus_mmio_map(sci, 0, H83069_SCIBASE + unit * 0x08);
-    qdev_prop_set_chr(DEVICE(sci), "chardev", serial_hd(unit));
+    qdev_prop_set_chr(DEVICE(sci), "chardev", serial_hd(0));
     qdev_prop_set_uint64(DEVICE(sci), "input-freq", s->input_freq);
 
     qdev_init_nofail(DEVICE(sci));
@@ -125,10 +125,6 @@ static void h83069_realize(DeviceState *dev, Error **errp)
                           &s, "h83069-syscr", 0x1);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->syscr);
 
-    if (!s->kernel) {
-        rom_add_file_fixed(bios_name, H83069_FLASH_BASE, 0);
-    }
-
     object_initialize_child(OBJECT(s), "cpu", &s->cpu,
                             sizeof(H8300CPU), TYPE_H8300CPU,
                             errp, NULL);
@@ -138,14 +134,14 @@ static void h83069_realize(DeviceState *dev, Error **errp)
     s->cpu.env.ack = qdev_get_gpio_in_named(DEVICE(&s->intc), "ack", 0);
     register_tmr(s, 0);
     register_tmr(s, 1);
-    register_sci(s, 0);
+    register_sci(s, s->sci_con);
 }
 
 static Property h83069_properties[] = {
     DEFINE_PROP_LINK("memory", H83069State, sysmem, TYPE_MEMORY_REGION,
                      MemoryRegion *),
     DEFINE_PROP_UINT64("clock-freq", H83069State, input_freq, 0),
-    DEFINE_PROP_BOOL("load-kernel", H83069State, kernel, false),
+    DEFINE_PROP_UINT32("console", H83069State, sci_con, 0),
     DEFINE_PROP_END_OF_LIST(),
 };
 
