@@ -153,3 +153,8 @@ config CAN_CTUCANFD_PCI
     default y if PCI_DEVICES
     depends on PCI && CAN_CTUCANFD
     select CAN_BUS
+
+config NE2000_LOCAL
+    bool
+    default n
+    select NE2000_COMMON
