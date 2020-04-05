@@ -24,6 +24,7 @@
 #include "hw/sysbus.h"
 #include "hw/loader.h"
 #include "hw/h8300/h83069.h"
+#include "hw/net/ne2000-local.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/qtest.h"
 #include "sysemu/device_tree.h"
@@ -46,6 +47,10 @@ static void kanebebe_init(MachineState *machine)
                            &error_fatal);
     memory_region_add_subregion(sysmem, DRAM_BASE, sdram);
 
+    if (!kernel_filename) {
+        rom_add_file_fixed(bios_name, 0, 0);
+    }
+
     /* Initalize CPU */
     object_initialize_child(OBJECT(machine), "mcu", s,
                             sizeof(H83069State), TYPE_H83069,
@@ -54,9 +59,11 @@ static void kanebebe_init(MachineState *machine)
                              "memory", &error_abort);
     object_property_set_uint(OBJECT(s), 25000000,
                                "clock-freq", &error_abort);
-    object_property_set_bool(OBJECT(s), kernel_filename != NULL,
-                             "load-kernel", &error_abort);
+    object_property_set_uint(OBJECT(s), 1,
+                             "console", &error_abort);
     object_property_set_bool(OBJECT(s), true, "realized", &error_abort);
+
+    ne2000_init(&nd_table[0], 0x200000, s->irq[17]);
 
     /* Load kernel and dtb */
     if (kernel_filename) {

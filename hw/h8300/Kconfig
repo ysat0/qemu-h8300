@@ -17,6 +17,7 @@ config H8S2674
 config H8300_KANEBEBE
     bool
     select H83069
+    select NE2000_LOCAL
 
 config H8300_EDOSK2674
     bool
