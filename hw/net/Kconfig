@@ -126,3 +126,8 @@ config CAN_SJA1000
     default y if PCI_DEVICES
     depends on PCI
     select CAN_BUS
+
+config NE2000_LOCAL
+    bool
+    default n
+    select NE2000_COMMON

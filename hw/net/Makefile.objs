@@ -17,6 +17,7 @@ common-obj-$(CONFIG_VMXNET3_PCI) += vmxnet3.o
 common-obj-$(CONFIG_SMC91C111) += smc91c111.o
 common-obj-$(CONFIG_LAN9118) += lan9118.o
 common-obj-$(CONFIG_NE2000_ISA) += ne2000-isa.o
+common-obj-$(CONFIG_NE2000_LOCAL) += ne2000-local.o
 common-obj-$(CONFIG_OPENCORES_ETH) += opencores_eth.o
 common-obj-$(CONFIG_XGMAC) += xgmac.o
 common-obj-$(CONFIG_MIPSNET) += mipsnet.o
