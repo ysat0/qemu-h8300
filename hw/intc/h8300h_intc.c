@@ -65,27 +65,10 @@ static inline int ext_no(int irq)
     return irq - 12;
 }
 
-static void issue_irq(H8300HINTCState *intc, int n_IRQ, bool cancel)
-{
-    if (cancel) {
-        intc->req = deposit64(intc->req, n_IRQ, 1, 0);
-        if (atomic_read(&intc->req_irq) == n_IRQ) {
-            atomic_set(&intc->req_irq, -1);
-            qemu_set_irq(intc->irq, 0);
-        }
-    } else {
-        intc->req = deposit64(intc->req, n_IRQ, 1, 1);
-        if (atomic_read(&intc->req_irq) < 0) {
-            atomic_set(&intc->req_irq, n_IRQ);
-            qemu_set_irq(intc->irq, (pri(intc, n_IRQ) << 8) | n_IRQ);
-        }
-    }
-}
-
 static void h8300hintc_set_irq(void *opaque, int n_IRQ, int level)
 {
     H8300HINTCState *intc = opaque;
-    bool cancel = false;
+    bool enable = true;
 
     if (n_IRQ >= NR_IRQS) {
         error_report("%s: IRQ %d out of range", __func__, n_IRQ);
@@ -93,58 +76,39 @@ static void h8300hintc_set_irq(void *opaque, int n_IRQ, int level)
     }
 
     if (ext_no(n_IRQ) >= 0) {
-        if (extract8(intc->iscr, ext_no(n_IRQ), 1)) {
-            /* edge trigger */
-            if ((extract8(intc->isr, ext_no(n_IRQ), 1) ^ level) == 0) {
+        if (extract8(intc->iscr, ext_no(n_IRQ), 1) && 
+            (extract8(intc->irqin, ext_no(n_IRQ), 1) ^ level) == 0) {
                 /* No trigger */
                 return;
             }
-        } else {
-            /* level trigger */
-            /* cancel IRQ if clear request */
-            if (level == 0) {
-                cancel = true;
+        intc->irqin = deposit8(intc->irqin, ext_no(n_IRQ), 1, level);
+        if (extract8(intc->ier, ext_no(n_IRQ), 1) == 0) {
+            enable = false;
+        }
+    }
+    if (level) {
+        if (enable) {
+            intc->req = deposit64(intc->req, n_IRQ, 1, 1);
+            if (atomic_read(&intc->req_irq) < 0) {
+                atomic_set(&intc->req_irq, n_IRQ);
+                qemu_set_irq(intc->irq, (pri(intc, n_IRQ) << 8) | n_IRQ);
             }
         }
-        intc->isr = deposit8(intc->isr, ext_no(n_IRQ), 1, level);
-        if (extract8(intc->ier, ext_no(n_IRQ), 1) == 0) {
-            /* disable interrupt. skip */
-            return;
-        }
     } else {
-        /* Internal peripheral is edge trigger */
-        if (level == 0) {
-            return;
+        intc->req = deposit64(intc->req, n_IRQ, 1, 0);
+        if (atomic_read(&intc->req_irq) == n_IRQ) {
+            atomic_set(&intc->req_irq, -1);
+            qemu_set_irq(intc->irq, 0);
         }
     }
-    issue_irq(intc, n_IRQ, cancel);
-}
-
-static void send_pend_irq(H8300HINTCState *intc)
-{
-    int max_pri = -1;
-    int n_IRQ = -1;
-    int i = 0;
-    do {
-        i =  find_next_bit(&intc->req, 64, i);
-        if (i < 64 && pri(intc, i) > max_pri) {
-            n_IRQ = i;
-            max_pri = pri(intc, i);
-        }
-        i++;
-    } while (i < 64);
-
-    if (n_IRQ >= 0) {
-        atomic_set(&intc->req_irq, n_IRQ);
-        qemu_set_irq(intc->irq, (pri(intc, n_IRQ) << 8) | n_IRQ);
-    }
-
 }
 
 static void h8300hintc_ack_irq(void *opaque, int no, int level)
 {
     H8300HINTCState *intc = opaque;
+    int i;
     int n_IRQ;
+    int max_pri;
 
     n_IRQ = atomic_read(&intc->req_irq);
     if (n_IRQ < 0) {
@@ -161,7 +125,23 @@ static void h8300hintc_ack_irq(void *opaque, int no, int level)
             }
         }
     }
-    send_pend_irq(intc);
+        
+    max_pri = 0;
+    n_IRQ = -1;
+    i = 0;
+    do {
+        i =  find_next_bit(&intc->req, 64, i);
+        if (i < 64 && pri(intc, i) > max_pri) {
+            n_IRQ = i;
+            max_pri = pri(intc, i);
+        }
+        i++;
+    } while (i < 64);
+
+    if (n_IRQ >= 0) {
+        atomic_set(&intc->req_irq, n_IRQ);
+        qemu_set_irq(intc->irq, (pri(intc, n_IRQ) << 8) | n_IRQ);
+    }
 }
 
 static void clear_pend_irq(H8300HINTCState *intc)
@@ -205,20 +185,12 @@ static uint64_t intc_read(void *opaque, hwaddr addr, unsigned size)
 static void intc_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
 {
     H8300HINTCState *intc = opaque;
-    uint64_t ir;
-    int i;
-
     switch(addr) {
     case A_ISCR:
         intc->iscr = val;
         break;
     case A_IER:
         intc->ier = val;
-        ir = intc->ier & intc->isr;
-        if (ir) {
-            i = find_next_bit(&ir, 8, 0);
-            issue_irq(intc, i + 12, false);
-        }
         break;
     case A_ISR:
         intc->isr &= val;
@@ -226,11 +198,9 @@ static void intc_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
         break;
     case A_IPRA:
         intc->ipr = deposit16(intc->ipr, 8, 8, val);
-        send_pend_irq(intc);
         break;
     case A_IPRB:
         intc->ipr = deposit16(intc->ipr, 0, 8, val);
-        send_pend_irq(intc);
         break;
     default:
         qemu_log_mask(LOG_UNIMP, "h8300h_intc: Register 0x%" HWADDR_PRIX
