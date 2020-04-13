@@ -29,7 +29,7 @@ static uint64_t syscr_read(void *opaque, hwaddr addr, unsigned size)
 {
     H83069State *s = (H83069State *)opaque;
     
-    return deposit32(s->syscr_val, 3, 1, s->cpu.env.im);
+    return s->syscr_val;
 }
 
 static void syscr_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
@@ -37,7 +37,7 @@ static void syscr_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
     H83069State *s = (H83069State *)opaque;
 
     s->syscr_val = val;
-    s->cpu.env.im = extract32(val, 3, 1);
+    s->cpu.env.im = extract32(val, 3, 1) ? 0 : 1;
 }
 
 static const MemoryRegionOps syscr_ops = {
@@ -91,6 +91,25 @@ static void register_tmr(H83069State *s, int unit)
     }
 }
 
+static void register_16tmr(H83069State *s)
+{
+    SysBusDevice *tmr;
+    int i;
+
+    object_initialize_child(OBJECT(s), "16timer", &s->tmr16,
+                            sizeof(R16State), TYPE_RENESAS_16TMR,
+                            &error_abort, NULL);
+
+    tmr = SYS_BUS_DEVICE(&s->tmr16);
+    sysbus_mmio_map(tmr, 0, H83069_16TIMER_BASE);
+    qdev_prop_set_uint64(DEVICE(tmr), "input-freq", s->input_freq);
+
+    qdev_init_nofail(DEVICE(tmr));
+    for (i = 0; i < TMR16_NR_IRQ; i++) {
+        sysbus_connect_irq(tmr, i, s->irq[H83069_16TIMER_IRQBASE + i]);
+    }
+}
+
 static void register_sci(H83069State *s, int unit)
 {
     SysBusDevice *sci;
@@ -122,18 +141,20 @@ static void h83069_realize(DeviceState *dev, Error **errp)
                            H83069_FLASH_SIZE, errp);
     memory_region_add_subregion(s->sysmem, H83069_FLASH_BASE, &s->flash);
     memory_region_init_io(&s->syscr, OBJECT(dev), &syscr_ops,
-                          &s, "h83069-syscr", 0x1);
+                          s, "h83069-syscr", 0x1);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->syscr);
+    sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, H83069_SYSCR);
 
     object_initialize_child(OBJECT(s), "cpu", &s->cpu,
                             sizeof(H8300CPU), TYPE_H8300CPU,
                             errp, NULL);
     object_property_set_bool(OBJECT(&s->cpu), true, "realized", errp);
-
+    s->syscr_val = 0x09;
     register_intc(s);
     s->cpu.env.ack = qdev_get_gpio_in_named(DEVICE(&s->intc), "ack", 0);
     register_tmr(s, 0);
     register_tmr(s, 1);
+    register_16tmr(s);
     register_sci(s, s->sci_con);
 }
 
