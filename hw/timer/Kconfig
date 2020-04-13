@@ -70,3 +70,6 @@ config RENESAS_CMT
 
 config RENESAS_TPU
     bool
+
+config RENESAS_TMR16
+    bool

@@ -23,6 +23,7 @@
 #include "target/h8300/cpu.h"
 #include "qemu/units.h"
 #include "hw/timer/renesas_tmr.h"
+#include "hw/timer/renesas_16timer.h"
 #include "hw/char/renesas_sci.h"
 #include "hw/intc/h8300h_intc.h"
 
@@ -36,6 +37,7 @@ typedef struct H83069State {
     H8300CPU cpu;
     RTMRState tmr[2];
     RSCIState sci[3];
+    R16State tmr16;
     H8300HINTCState intc;
     uint8_t syscr_val;
 
@@ -64,7 +66,10 @@ typedef struct H83069State {
 #define H83069_SCIBASE 0xffffb0
 #define H83069_TMRBASE 0xffff80
 #define H83069_INTCBASE 0xfee014
+#define H83069_16TIMER_BASE 0xffff60
+#define H83069_SYSCR 0xfee012
 
+#define H83069_16TIMER_IRQBASE 24
 #define H83069_TMR_IRQBASE 36
 #define H83069_SCI_IRQBASE 52
 
