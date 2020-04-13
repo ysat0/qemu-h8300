@@ -161,7 +161,7 @@ static void update_tcnt(RTPUState *s)
     elapsed /= s->clk_per_nsec;
 
     for (ch = 5; ch >= 0; ch--) {
-        ir[6] = 0;
+        ir[ch] = 0;
         div = div_rate[ch][FIELD_EX8(s->ch[ch].tcr, TCR, TPSC)];
         if (extract32(s->tstr, ch, 1) == 0 || div == 0) {
             continue;
@@ -428,12 +428,18 @@ static void tpuc_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
     case 0:
         tpu->tstr = val;
         set_next_event(tpu);
+        break;
     case 1:
         tpu->tsyr = val;
         if (tpu->tsyr) {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "renesas_tpu: Sync mode not support.\n");
         }
+        break;
+    default:
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "renesas_tpu: Unknown register %08lx\n",
+                      addr);
     }
 }
 
