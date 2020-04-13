@@ -32,6 +32,17 @@
 
 #define DRAM_BASE 0x00400000
 
+static void setup_vector(unsigned int base)
+{
+    uint32_t rom_vec[64];
+    int i;
+
+    for (i = 0; i < ARRAY_SIZE(rom_vec); i++) {
+        rom_vec[i] = cpu_to_be32(base + i * 4);
+    }
+    rom_add_blob_fixed("vector", rom_vec, sizeof(rom_vec), 0x000000);
+}
+
 static void kanebebe_init(MachineState *machine)
 {
     H83069State *s = g_new(H83069State, 1);
@@ -68,7 +79,8 @@ static void kanebebe_init(MachineState *machine)
     /* Load kernel and dtb */
     if (kernel_filename) {
         h8300_load_image(H8300CPU(first_cpu), kernel_filename,
-                      DRAM_BASE + 2 * MiB, 2 * MiB);
+                      DRAM_BASE + 0x280000, 0x180000);
+        setup_vector(0xffff20 - 0x100);
         if (dtb_filename) {
             dtb = load_device_tree(dtb_filename, &dtb_size);
             if (dtb == NULL) {
