@@ -2459,6 +2459,8 @@ static bool trans_Bcc(DisasContext *ctx, arg_Bcc *a)
         break;
     case 2 ... 15:
         dc.temp = tcg_temp_new();
+        dc.cond = TCG_COND_NEVER;
+        dc.value = 0;
         ccr_cond(&dc, a->cd);
         t = gen_new_label();
         done = gen_new_label();

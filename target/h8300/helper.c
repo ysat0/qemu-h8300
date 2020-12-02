@@ -84,7 +84,7 @@ bool h8300_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 {
     H8300CPU *cpu = H8300CPU(cs);
     CPUH8300State *env = &cpu->env;
-    int pri;
+    int pri = 0;
 
     switch(env->im) {
     case 0:
