@@ -22,43 +22,9 @@
 #include "qemu/bitops.h"
 #include "qemu-common.h"
 #include "hw/registerfields.h"
-#include "qom/cpu.h"
-
-#define TYPE_H8300CPU "h8300cpu"
-
-#define H8300CPU_CLASS(klass)                                     \
-    OBJECT_CLASS_CHECK(H8300CPUClass, (klass), TYPE_H8300CPU)
-#define H8300CPU(obj) \
-    OBJECT_CHECK(H8300CPU, (obj), TYPE_H8300CPU)
-#define H8300CPU_GET_CLASS(obj) \
-    OBJECT_GET_CLASS(H8300CPUClass, (obj), TYPE_H8300CPU)
-
-/*
- * H8300CPUClass:
- * @parent_realize: The parent class' realize handler.
- * @parent_reset: The parent class' reset handler.
- *
- * A H8300 CPU model.
- */
-typedef struct H8300CPUClass {
-    /*< private >*/
-    CPUClass parent_class;
-    /*< public >*/
-
-    DeviceRealize parent_realize;
-    void (*parent_reset)(CPUState *cpu);
-
-} H8300CPUClass;
-
-#define TARGET_LONG_BITS 32
-#define TARGET_PAGE_BITS 12
-
-#define CPUArchState struct CPUH8300State
+#include "cpu-qom.h"
 
 #include "exec/cpu-defs.h"
-
-#define TARGET_PHYS_ADDR_SPACE_BITS 32
-#define TARGET_VIRT_ADDR_SPACE_BITS 32
 
 /* CCR define */
 REG8(CCR, 0)
@@ -87,14 +53,11 @@ FIELD(SYSCR, UE,    3, 1)
 FIELD(SYSCR, STS,   4, 3)
 FIELD(SYSCR, SSBY,  7, 1)
 
-#define NB_MMU_MODES 1
-#define MMU_MODE0_SUFFIX _all
-
 enum {
     NUM_REGS = 8,
 };
 
-typedef struct CPUH8300State {
+typedef struct CPUArchState {
     /* CPU registers */
     uint32_t regs[NUM_REGS];    /* general registers */
     uint32_t ccr_c;             /* C bit of status register */
@@ -123,8 +86,6 @@ typedef struct CPUH8300State {
     uint32_t req_pri;
     uint32_t im;
     qemu_irq ack;		/* Interrupt acknowledge */
-
-    CPU_COMMON
 } CPUH8300State;
 
 /*
@@ -133,16 +94,22 @@ typedef struct CPUH8300State {
  *
  * A H8300 CPU
  */
-struct H8300CPU {
+/*
+ * H8300CPU:
+ * @env: #CPUH8300State
+ *
+ * A H8300 CPU
+ */
+struct ArchCPU {
     /*< private >*/
     CPUState parent_obj;
     /*< public >*/
 
+    CPUNegativeOffsetState neg;
     CPUH8300State env;
 };
 
-typedef struct H8300CPU H8300CPU;
-
+#if 0
 static inline H8300CPU *h8300_env_get_cpu(CPUH8300State *env)
 {
     return container_of(env, H8300CPU, env);
@@ -151,15 +118,16 @@ static inline H8300CPU *h8300_env_get_cpu(CPUH8300State *env)
 #define ENV_GET_CPU(e) CPU(h8300_env_get_cpu(e))
 
 #define ENV_OFFSET offsetof(H8300CPU, env)
+#endif
 
-#define H8300_CPU_TYPE_SUFFIX "-" TYPE_H8300CPU
+#define H8300_CPU_TYPE_SUFFIX "-" TYPE_H8300_CPU
 #define H8300_CPU_TYPE_NAME(model) model H8300_CPU_TYPE_SUFFIX
-#define CPU_RESOLVING_TYPE TYPE_H8300CPU
+#define CPU_RESOLVING_TYPE TYPE_H8300_CPU
 
 void h8300_cpu_do_interrupt(CPUState *cpu);
 bool h8300_cpu_exec_interrupt(CPUState *cpu, int int_req);
 void h8300_cpu_dump_state(CPUState *cpu, FILE *f, int flags);
-int h8300_cpu_gdb_read_register(CPUState *cpu, uint8_t *buf, int reg);
+int h8300_cpu_gdb_read_register(CPUState *cpu, GByteArray *buf, int reg);
 int h8300_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
 hwaddr h8300_cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
 
@@ -172,6 +140,7 @@ void h8300_load_image(H8300CPU *cpu, const char *filename,
                    uint32_t start, uint32_t size);
 void h8300_cpu_unpack_ccr(CPUH8300State *env, uint32_t ccr);
 void h8300_cpu_unpack_exr(CPUH8300State *env, uint32_t exr);
+void h8300_cpu_setim(int im);
 
 #define cpu_signal_handler cpu_h8300_signal_handler
 #define cpu_list h8300_cpu_list

@@ -1,4 +1,0 @@
-obj-$(CONFIG_H83069) += h83069.o
-obj-$(CONFIG_H8S2674) += h8s2674.o
-obj-$(CONFIG_H8300_KANEBEBE) += kanebebe.o
-obj-$(CONFIG_H8300_EDOSK2674) += edosk2674.o

@@ -24,6 +24,7 @@
 #include "hw/sysbus.h"
 #include "sysemu/sysemu.h"
 #include "cpu.h"
+#include "hw/qdev-properties.h"
 
 static uint64_t intcr_read(void *opaque, hwaddr addr, unsigned size)
 {
@@ -54,22 +55,19 @@ static void register_intc(H8S2674State *s)
     int i;
     SysBusDevice *intc;
 
-    object_initialize_child(OBJECT(s), "intc", &s->intc,
-                            sizeof(H8SINTCState),
-                            TYPE_H8SINTC, &error_abort, NULL);
+    object_initialize_child(OBJECT(s), "intc", &s->intc, TYPE_H8SINTC);
 
     intc = SYS_BUS_DEVICE(&s->intc);
-    sysbus_mmio_map(intc, 0, H8S2674_INTCBASE1);
-    sysbus_mmio_map(intc, 1, H8S2674_INTCBASE2);
-    qdev_prop_set_ptr(DEVICE(intc), "cpu-im", &s->cpu.env.im);
 
     for (i = 0; i < NR_IRQS; i++) {
         s->irq[i] = qdev_get_gpio_in(DEVICE(intc), i);
     }
 
-    qdev_init_nofail(DEVICE(intc));
+    sysbus_realize(intc, &error_abort);
     sysbus_connect_irq(intc, 0,
                        qdev_get_gpio_in(DEVICE(&s->cpu), H8300_CPU_IRQ));
+    sysbus_mmio_map(intc, 0, H8S2674_INTCBASE1);
+    sysbus_mmio_map(intc, 1, H8S2674_INTCBASE2);
 }
 
 static void register_tmr(H8S2674State *s)
@@ -77,19 +75,18 @@ static void register_tmr(H8S2674State *s)
     SysBusDevice *tmr;
     int i;
 
-    object_initialize_child(OBJECT(s), "tmr", &s->tmr,
-                            sizeof(RTMRState), TYPE_RENESAS_TMR,
-                            &error_abort, NULL);
+    object_initialize_child(OBJECT(s), "tmr",
+                            &s->tmr, TYPE_RENESAS_TMR);
 
     tmr = SYS_BUS_DEVICE(&s->tmr);
-    sysbus_mmio_map(tmr, 0, H8S2674_TMRBASE);
     qdev_prop_set_uint64(DEVICE(tmr), "input-freq", s->input_freq);
     qdev_prop_set_uint32(DEVICE(tmr), "timer-type", 1);
+    sysbus_realize(tmr, &error_abort);
 
-    qdev_init_nofail(DEVICE(tmr));
     for (i = 0; i < TMR_NR_IRQ; i++) {
         sysbus_connect_irq(tmr, i, s->irq[H8S2674_TMR_IRQBASE + i]);
     }
+    sysbus_mmio_map(tmr, 0, H8S2674_TMRBASE);
 }
 
 static void register_tpu(H8S2674State *s)
@@ -97,20 +94,19 @@ static void register_tpu(H8S2674State *s)
     SysBusDevice *tpu;
     int i;
 
-    object_initialize_child(OBJECT(s), "tpu", &s->tpu,
-                            sizeof(RTPUState), TYPE_RENESAS_TPU,
-                            &error_abort, NULL);
+    object_initialize_child(OBJECT(s), "tpu",
+                            &s->tpu, TYPE_RENESAS_TPU);
 
     tpu = SYS_BUS_DEVICE(&s->tpu);
-    sysbus_mmio_map(tpu, 0, H8S2674_TPUBASE1);
-    sysbus_mmio_map(tpu, 1, H8S2674_TPUBASE2);
-    sysbus_mmio_map(tpu, 2, H8S2674_TPUBASE3);
     qdev_prop_set_uint64(DEVICE(tpu), "input-freq", s->input_freq);
+    sysbus_realize(tpu, &error_abort);
 
-    qdev_init_nofail(DEVICE(tpu));
     for (i = 0; i < TPU_NR_IRQ; i++) {
         sysbus_connect_irq(tpu, i, s->irq[H8S2674_TPU_IRQBASE + i]);
     }
+    sysbus_mmio_map(tpu, 0, H8S2674_TPUBASE1);
+    sysbus_mmio_map(tpu, 1, H8S2674_TPUBASE2);
+    sysbus_mmio_map(tpu, 2, H8S2674_TPUBASE3);
 }
 
 static void register_sci(H8S2674State *s, int unit)
@@ -118,21 +114,20 @@ static void register_sci(H8S2674State *s, int unit)
     SysBusDevice *sci;
     int i, irqbase;
 
-    object_initialize_child(OBJECT(s), "sci[*]", &s->sci[unit],
-                            sizeof(RSCIState), TYPE_RENESAS_SCI,
-                            &error_abort, NULL);
+    object_initialize_child(OBJECT(s), "sci[*]",
+                            &s->sci[unit], TYPE_RENESAS_SCI);
 
     sci = SYS_BUS_DEVICE(&s->sci[unit]);
-    sysbus_mmio_map(sci, 0, H8S2674_SCIBASE + unit * 0x08);
     qdev_prop_set_chr(DEVICE(sci), "chardev", serial_hd(0));
     qdev_prop_set_uint64(DEVICE(sci), "input-freq", s->input_freq);
     qdev_prop_set_uint32(DEVICE(sci), "rev", 0);
+    sysbus_realize(sci, &error_abort);
 
-    qdev_init_nofail(DEVICE(sci));
     irqbase = H8S2674_SCI_IRQBASE + SCI_NR_IRQ * unit;
     for (i = 0; i < SCI_NR_IRQ; i++) {
         sysbus_connect_irq(sci, i, s->irq[irqbase + i]);
     }
+    sysbus_mmio_map(sci, 0, H8S2674_SCIBASE + unit * 0x08);
 }
 
 static void h8s2674_realize(DeviceState *dev, Error **errp)
@@ -145,10 +140,8 @@ static void h8s2674_realize(DeviceState *dev, Error **errp)
                           &s, "h8s2674-intcr", H8S2674_INTCBASE2);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->intcr);
 
-    object_initialize_child(OBJECT(s), "cpu", &s->cpu,
-                            sizeof(H8300CPU), TYPE_H8300CPU,
-                            errp, NULL);
-    object_property_set_bool(OBJECT(&s->cpu), true, "realized", errp);
+    object_initialize_child(OBJECT(s), "cpu", &s->cpu, TYPE_H8300_CPU);
+    qdev_realize(DEVICE(&s->cpu), NULL, &error_abort);
 
     register_intc(s);
     s->cpu.env.ack = qdev_get_gpio_in_named(DEVICE(&s->intc), "ack", 0);
@@ -170,7 +163,7 @@ static void h8s2674_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->realize = h8s2674_realize;
-    dc->props = h8s2674_properties;
+    device_class_set_props(dc, h8s2674_properties);
 }
 
 static const TypeInfo h8s2674_info = {

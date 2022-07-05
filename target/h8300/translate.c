@@ -21,12 +21,11 @@
 #include "qemu/qemu-print.h"
 #include "cpu.h"
 #include "exec/exec-all.h"
-#include "tcg-op.h"
+#include "tcg/tcg-op.h"
 #include "exec/cpu_ldst.h"
 #include "exec/helper-proto.h"
 #include "exec/helper-gen.h"
 #include "exec/translator.h"
-#include "trace-tcg.h"
 #include "exec/log.h"
 
 typedef struct DisasContext {
@@ -229,11 +228,11 @@ static int b4_bop_abs(DisasContext *ctx, int abs)
 }
 
 /* Include the auto-generated decoder. */
-#include "decode.inc.c"
+#include "decode-insns.c.inc"
 
 void h8300_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 {
-    H8300CPU *cpu = H8300CPU(cs);
+    H8300CPU *cpu = H8300_CPU(cs);
     CPUH8300State *env = &cpu->env;
     int i;
     uint32_t ccr;
@@ -2847,6 +2846,7 @@ static void h8300_tr_insn_start(DisasContextBase *dcbase, CPUState *cs)
     tcg_gen_insn_start(ctx->base.pc_next);
 }
 
+#if 0
 static bool h8300_tr_breakpoint_check(DisasContextBase *dcbase, CPUState *cs,
                                     const CPUBreakpoint *bp)
 {
@@ -2859,6 +2859,7 @@ static bool h8300_tr_breakpoint_check(DisasContextBase *dcbase, CPUState *cs,
     ctx->base.pc_next += 1;
     return true;
 }
+#endif
 
 static void h8300_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
 {
@@ -2891,6 +2892,7 @@ static void h8300_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
         break;
     case DISAS_UPDATE:
         tcg_gen_movi_i32(cpu_pc, ctx->base.pc_next);
+        /* fall through */
     case DISAS_EXIT:
         tcg_gen_exit_tb(NULL, 0);
         break;
@@ -2911,7 +2913,6 @@ static const TranslatorOps h8300_tr_ops = {
     .init_disas_context = h8300_tr_init_disas_context,
     .tb_start           = h8300_tr_tb_start,
     .insn_start         = h8300_tr_insn_start,
-    .breakpoint_check   = h8300_tr_breakpoint_check,
     .translate_insn     = h8300_tr_translate_insn,
     .tb_stop            = h8300_tr_tb_stop,
     .disas_log          = h8300_tr_disas_log,

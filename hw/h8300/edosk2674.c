@@ -67,26 +67,22 @@ static void edosk2674_init(MachineState *machine)
                           0);
 
     if (!kernel_filename) {
-        rom_add_file_fixed(bios_name, 0, 0);
+        rom_add_file_fixed(machine->firmware, 0, 0);
     }
 
     /* Initalize CPU */
-    object_initialize_child(OBJECT(machine), "mcu", s,
-                            sizeof(H8S2674State), TYPE_H8S2674,
-                            &error_fatal, NULL);
-    object_property_set_link(OBJECT(s), OBJECT(get_system_memory()),
-                             "memory", &error_abort);
-    object_property_set_uint(OBJECT(s), 33333333,
-                               "clock-freq", &error_abort);
-    object_property_set_uint(OBJECT(s), 2,
-                               "console", &error_abort);
-    object_property_set_bool(OBJECT(s), true, "realized", &error_abort);
+    object_initialize_child(OBJECT(machine), "mcu", &s->cpu, TYPE_H8S2674);
+    object_property_set_link(OBJECT(&s->cpu), "main-bus", OBJECT(sysmem),
+                             &error_abort);
+    object_property_set_uint(OBJECT(s), "clock-freq", 33333333, &error_abort);
+    object_property_set_uint(OBJECT(s), "console", 2, &error_abort);
+    qdev_realize(DEVICE(&s->cpu), NULL, &error_abort);
 
     smc91c96_init(&nd_table[0], 0xf80000, s->irq[16]);
 
     /* Load kernel and dtb */
     if (kernel_filename) {
-        h8300_load_image(H8300CPU(first_cpu), kernel_filename,
+        h8300_load_image(H8300_CPU(first_cpu), kernel_filename,
                       DRAM_BASE + 4 * MiB, 4 * MiB);
         setup_vector(0xffc000 - 0x200);
         if (dtb_filename) {
@@ -104,7 +100,7 @@ static void edosk2674_init(MachineState *machine)
             rom_add_blob_fixed("dtb", dtb, dtb_size,
                                DRAM_BASE + 4 * MiB - dtb_size);
             /* Set dtb address to R0 */
-            H8300CPU(first_cpu)->env.regs[0] = DRAM_BASE + 4 * MiB - dtb_size;
+            H8300_CPU(first_cpu)->env.regs[0] = DRAM_BASE + 4 * MiB - dtb_size;
         }
     }
 }
@@ -116,7 +112,7 @@ static void edosk2674_class_init(ObjectClass *oc, void *data)
     mc->desc = "EDOSK2674";
     mc->init = edosk2674_init;
     mc->is_default = 0;
-    mc->default_cpu_type = TYPE_H8300CPU;
+    mc->default_cpu_type = TYPE_H8300_CPU;
 }
 
 static const TypeInfo edosk2674_type = {

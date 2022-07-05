@@ -21,12 +21,14 @@
 #include "qemu/log.h"
 #include "qapi/error.h"
 #include "qemu/timer.h"
-#include "cpu.h"
 #include "hw/hw.h"
+#include "hw/irq.h"
 #include "hw/sysbus.h"
 #include "hw/registerfields.h"
+#include "hw/qdev-properties.h"
 #include "hw/timer/renesas_tpu.h"
 #include "qemu/error-report.h"
+#include "migration/vmstate.h"
 
 REG8(TCR, 0)
 FIELD(TCR, TPSC, 0, 3)
@@ -513,10 +515,10 @@ static void rtpu_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    dc->props = rtpu_properties;
     dc->vmsd = &vmstate_rtpu;
     dc->reset = rtpu_reset;
     dc->realize = rtpu_realize;
+    device_class_set_props(dc, rtpu_properties);
 }
 
 static const TypeInfo rtpu_info = {

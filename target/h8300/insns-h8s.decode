@@ -1,0 +1,586 @@
+#
+# Renesas H8/300 instruction decode definitions.
+#
+# Copyright (c) 2019 Yoshinori Sato <ysato@users.sourceforge.jp>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, see <http://www.gnu.org/licenses/>.
+#
+
+&i		imm
+&ri		r imm sz
+&rdi		rd imm sz
+&eri		er imm
+&rr		rs rd sz
+&ai		abs imm
+&cd		cd dsp
+&rn		rd rn
+&an		abs rn
+&r		r sz
+#&sr		s r sz
+&rdsp		r dsp
+&rdspc		r dsp c
+&abs		abs
+&absc		abs c
+&rrdsp		er r dsp sz
+&rabs		r abs sz a
+&ldstccr	r c dsp ldst
+&bop		abs op ir
+
+%imm32		0:0 !function=imm32
+%dsp16		0:0 !function=dsp16
+%dsp24		0:0 !function=dsp24
+%dsp24l		0:0 !function=dsp24l
+%abs16		0:0 !function=abs16
+%abs24		0:0 !function=abs24
+%b10_er		0:0 !function=b10_er
+%b10_ldst	0:0 !function=b10_ldst
+%adds		23:1 20:1 !function=adds_imm
+%incdecsz	21:1 !function=incdec
+%incdecimm	23:1 !function=incdec
+%b2_r_sz	20:2 !function=sz013
+%b2_rs_rd_sz	24:2 !function=sz013
+%b6_bop_op	0:0 !function=b6_bop_op
+%b6_bop_ir	0:0 !function=b6_bop_ir
+%b8_bop_abs	0:0 !function=b6_bop_abs
+%b8_bop_op	0:0 !function=b6_bop_op
+%b8_bop_ir	0:0 !function=b6_bop_ir
+
+@b2_imm		.... .... imm:s8 &i
+@b2_r_imm	.... rd:4 imm:s8 &rdi sz=0
+@b2_rs_rd	.... .... rs:4 rd:4 &rr
+@b2_sz_rs_rd	.... .... rs:4 rd:4 &rr sz=%b2_rs_rd_sz
+@b2_adds	.... .... .... 0 rd:3 &rdi sz=2 imm=%adds
+@b2_er_r	.... .... . er:3 r:4 &rrdsp
+@b2_bop_r	.... .... . imm:3 r:4 &ri sz=0
+@b2_bcc		.... cd:4 dsp:s8 &cd
+@b2_idb		.... .... .... rd:4 &rdi
+@b2_idwl	.... .... .... rd:4 &rdi imm=%incdecimm sz=%incdecsz
+@b2_r		.... .... .... r:4 &r sz=%b2_r_sz
+#@b2_s_r		.... .... . s:1 .. r:4 &sr sz=%b2_r_sz
+@b2_rs_erd	.... .... rs:4 0 rd:3 &rr
+@b2_r_abs	.... r:4 abs:8 &rabs
+@b4_rd_imm	.... .... .... rd:4 imm:s16 &rdi sz=1
+@b4_ers_erd	.... .... .... .... .... .... . rs:3 0 rd:3 &rr sz=2
+@b4_ers_erd_d	.... .... .... .... .... .... . er:3 0 r:3 &rrdsp sz=2 dsp=0
+@b4_bop_m	.... .... 0 er:3 .... .... .... . imm:3 .... &eri
+@b4_bop_a	.... .... abs:8 .... .... . imm:3 .... &ai
+@b4_bcc		.... .... cd:4 .... dsp:s16 &cd
+@b4_rn_rd	.... .... 0 rd:3 .... .... .... rn:4 .... &rn
+@b4_rn_a	.... .... abs:8 .... .... rn:4 .... &an
+@b4_rs_rd	.... .... .... .... .... .... rs:4 rd:4 &rr
+@b4_rs_erd	.... .... .... .... .... .... rs:4 0 rd:3 &rr
+@b4_er		.... .... .... .... .... .... . r:3 .... &rdspc dsp=0
+@b4_r_abs	.... .... .... r:4 abs:16 &rabs
+@b4_imm		.... .... .... .... .... .... imm:s8 &i
+@b6_rd_imm	.... .... .... 0 rd:3 &rdi imm=%imm32 sz=2
+@b6_er16	.... .... .... .... .... .... . r:3 .... &rdspc dsp=%dsp16
+@b6_abs16	.... .... .... .... .... .... .... .... &absc abs=%abs16
+@b6_r_abs	.... .... .... r:4 &rabs abs=%abs24
+@b6_er_abs	.... .... .... .... .... .... .... 0 r:3 &rabs abs=%abs16
+@b6_ers_erd	.... .... .... .... .... .... . er:3 0 r:3 &rrdsp sz=2 dsp=%dsp16
+@b6_bop		.... .... .... .... abs:16 &bop op=%b6_bop_op ir=%b6_bop_ir
+@b10_er24	.... .... .... .... .... .... 0 r:3 .... &ldstccr ldst=%b10_ldst dsp=%dsp24
+@b10_ers_erd	.... .... .... .... .... .... . er:3 0000 &rrdsp sz=2 r=%b10_er dsp=%dsp24l
+@b8_abs24	.... .... .... .... .... .... .... .... &absc abs=%abs24
+@b8_er_r	.... .... 0 er:3 .... .... .... .... r:4 &rrdsp
+@b8_er_abs	.... .... .... .... .... .... .... 0 r:3 &rabs abs=%abs24
+@b8_bop		.... .... .... .... &bop op=%b8_bop_op ir=%b8_bop_ir abs=%b8_bop_abs
+
+# ADD.B #xx:8,Rd
+ADD_i		1000 .... .... .... @b2_r_imm
+# ADD.W #xx:16,Rd
+ADD_i		0111 1001 0001 .... .... .... .... .... @b4_rd_imm
+# ADD.L #xx:32,ERd
+ADD_i		0111 1010 0001 .... @b6_rd_imm
+# ADD.[BWL] Rs,Rd
+# ADDS #n,ERd
+# INC.B Rd
+# INC.[WL] #[12],Rd
+{
+  INC		0000 1011 .1.1 .... @b2_idwl
+  ADDS		0000 1011 .00. .... @b2_adds
+  INC		0000 1010 0000 .... @b2_idb imm=1 sz=0
+  ADD_r		0000 10.. .... .... @b2_sz_rs_rd
+}
+# ADDX #xx:8,Rd
+ADDX_i		1001 .... .... .... @b2_r_imm
+# ADDX Rs,Rd
+# DAA Rd
+# MOV.[BWL] Rs,Rd
+{
+  ADDX_r	0000 1110 .... .... @b2_rs_rd sz=0
+  DAA		0000 1111 00.. .... @b2_r
+  MOV_r		0000 11.. .... .... @b2_sz_rs_rd
+}
+# AND.B #xx:8,Rd
+AND_i		1110 .... .... .... @b2_r_imm
+# AND.B Rs,Rd
+AND_r		0001 0110 .... .... @b2_rs_rd sz=0
+# AND.W #xx:16,Rd
+AND_i		0111 1001 0110 .... .... .... .... .... @b4_rd_imm
+# AND.W Rs,Rd
+AND_r		0110 0110 .... .... @b2_rs_rd sz=1
+# AND.L #xx:32,ERd
+AND_i		0111 1010 0110 .... @b6_rd_imm
+# AND.L ERs,ERd
+AND_r		0000 0001 1111 0000 0110 0110 0 ... .... @b4_ers_erd
+# ANDC #xx:8,CCR
+ANDC		0000 0110 .... .... @b2_imm
+# ANDC #xx:8,EXR
+#ANDC_E		0000 0001 0100 0001 0000 0110 .... .... @b4_imm
+# BAND #xx:3,Rd
+BAND_r		0111 0110 0... .... @b2_bop_r
+# BAND #xx:3,@ERd
+BAND_m		0111 1100 .... 0000 0111 0110 0 ... 0000 @b4_bop_m
+# BAND #xx:3,@aa:8
+BAND_a		0111 1110 .... .... 0111 0110 0 ... 0000 @b4_bop_a
+# BAND #xx:3,@aa:16
+# BIAND #xx:3,@aa:16
+# BILD #xx:3,@aa:16
+# BIOR #xx:3,@aa:16
+# BIST #xx:3,@aa:16
+# BIXOR #xx:3,@aa:16
+# BLD #xx:3,@aa:16
+# BOR #xx:3,@aa:16
+# BST #xx:3,@aa:16
+# BXOR #xx:3,@aa:16
+BOP1_a16	0110 1010 0001 0000 .... .... .... .... @b6_bop
+# BAND #xx:3,@aa:32
+# BIAND #xx:3,@aa:32
+# BILD #xx:3,@aa:32
+# BIOR #xx:3,@aa:32
+# BIST #xx:3,@aa:32
+# BIXOR #xx:3,@aa:32
+# BLD #xx:3,@aa:32
+# BOR #xx:3,@aa:32
+# BST #xx:3,@aa:32
+# BXOR #xx:3,@aa:32
+BOP1_a32	0110 1010 0011 0000 @b8_bop
+# BRA d:8
+# BRN d:8
+# BHI d:8
+# BLS d:8
+# BCC d:8
+# BCS d:8
+# BNE d:8
+# BEQ d:8
+# BVC d:8
+# BVS d:8
+# BPL d:8
+# BMI d:8
+# BGE d:8
+# BLT d:8
+# BGT d:8
+# BLE d:8
+Bcc		0100 .... .... .... @b2_bcc
+# BRA d:16
+# BRN d:16
+# BHI d:16
+# BLS d:16
+# BCC d:16
+# BCS d:16
+# BNE d:16
+# BEQ d:16
+# BVC d:16
+# BVS d:16
+# BPL d:16
+# BMI d:16
+# BGE d:16
+# BLT d:16
+# BGT d:16
+# BLE d:16
+Bcc		0101 1000 .... 0000 .... .... .... .... @b4_bcc
+# BCLR #xx:3,Rd
+BCLR_ir		0111 0010 0... .... @b2_bop_r
+# BCLR #xx:3,@ERd
+BCLR_im		0111 1101 .... 0000 0111 0010 0 ... 0000 @b4_bop_m
+# BCLR #xx:3,@aa:8
+BCLR_ia		0111 1111 .... .... 0111 0010 0 ... 0000 @b4_bop_a
+# BCLR Rn,Rd
+BCLR_rr		0110 0010 .... .... @b2_rs_rd sz=0
+# BCLR Rn,@ERd
+BCLR_rm		0111 1101 .... 0000 0110 0010 .... 0000 @b4_rn_rd
+# BCLR Rn,@aa:8
+BCLR_ra		0111 1111 .... .... 0110 0010 .... 0000 @b4_rn_a
+# BCLR #xx:3,@aa:16
+# BCLR Rn,@aa:16
+# BNOT #xx:3,@aa:16
+# BNOT Rn,@aa:16
+# BSET #xx:3,@aa:16
+# BSET Rn,@aa:16
+# BTST #xx:3,@aa:16
+# BTST Rn,@aa:16
+BOP2_a16	0110 1010 0001 1000 .... .... .... .... @b6_bop
+# BCLR #xx:3,@aa:32
+# BCLR Rn,@aa:32
+# BNOT #xx:3,@aa:32
+# BNOT Rn,@aa:32
+# BSET #xx:3,@aa:32
+# BSET Rn,@aa:32
+# BTST #xx:3,@aa:32
+# BTST Rn,@aa:32
+BOP2_a32	0110 1010 0011 1000 @b8_bop
+# BIAND #xx:3,Rd
+BIAND_r		0111 0110 1 ... .... @b2_bop_r
+# BIAND #xx:3,@ERd
+BIAND_m		0111 1100 .... 0000 0111 0110 1 ... 0000 @b4_bop_m
+# BIAND #xx:3,@aa:8
+BIAND_a		0111 1110 .... .... 0111 0110 1 ... 0000 @b4_bop_a
+# BILD #xx:3,Rd
+BILD_r		0111 0111 1 ... .... @b2_bop_r
+# BILD #xx:3,@ERd
+BILD_m		0111 1100 .... 0000 0111 0111 1 ... 0000 @b4_bop_m
+# BILD #xx:3,@aa:8
+BILD_a		0111 1110 .... .... 0111 0111 1 ... 0000 @b4_bop_a
+# BIOR #xx:3,Rd
+BIOR_r		0111 0100 1 ... .... @b2_bop_r
+# BIOR #xx:3,@ERd
+BIOR_m		0111 1100 .... 0000 0111 0100 1 ... 0000 @b4_bop_m
+# BIOR #xx:3,@aa:8
+BIOR_a		0111 1110 .... .... 0111 0100 1 ... 0000 @b4_bop_a
+# BIST #xx:3,Rd
+BIST_r		0110 0111 1 ... .... @b2_bop_r
+# BIST #xx:3,@ERd
+BIST_m		0111 1101 .... 0000 0110 0111 1 ... 0000 @b4_bop_m
+# BIST #xx:3,@aa:8
+BIST_a		0111 1111 .... .... 0110 0111 1 ... 0000 @b4_bop_a
+# BIXOR #xx:3,Rd
+BIXOR_r		0111 0101 1 ... .... @b2_bop_r
+# BIXOR #xx:3,@ERd
+BIXOR_m		0111 1100 .... 0000 0111 0101 1 ... 0000 @b4_bop_m
+# BIXOR #xx:3,@aa:8
+BIXOR_a		0111 1110 .... .... 0111 0101 1 ... 0000 @b4_bop_a
+# BLD #xx:3,Rd
+BLD_r		0111 0111 0 ... .... @b2_bop_r
+# BLD #xx:3,@ERd
+BLD_m		0111 1100 .... 0000 0111 0111 0 ... 0000 @b4_bop_m
+# BLD #xx:3,@aa:8
+BLD_a		0111 1110 .... .... 0111 0111 0 ... 0000 @b4_bop_a
+# BNOT #xx:3,Rd
+BNOT_ir		0111 0001 0 ... .... @b2_bop_r
+# BNOT #xx:3,@ERd
+BNOT_im		0111 1101 .... 0000 0111 0001 0 ... 0000 @b4_bop_m
+# BNOT #xx:3,@aa:8
+BNOT_ia		0111 1111 .... .... 0111 0001 0 ... 0000 @b4_bop_a
+# BNOT Rn,Rd
+BNOT_rr		0110 0001 .... .... @b2_rs_rd sz=0
+# BNOT Rn,@ERd
+BNOT_rm		0111 1101 .... 0000 0110 0001 .... 0000 @b4_rn_rd
+# BNOT Rn,@aa:8
+BNOT_ra		0111 1111 .... .... 0110 0001 .... 0000 @b4_rn_a
+# BOR #xx:3,Rd
+BOR_r		0111 0100 0 ... .... @b2_bop_r
+# BOR #xx:3,@ERd
+BOR_m		0111 1100 .... 0000 0111 0100 0 ... 0000 @b4_bop_m
+# BOR #xx:3,@aa:8
+BOR_a		0111 1110 .... .... 0111 0100 0 ... 0000 @b4_bop_a
+# BSET #xx:3,Rd
+BSET_ir		0111 0000 0 ... .... @b2_bop_r
+# BSET #xx:3,@ERd
+BSET_im		0111 1101 .... 0000 0111 0000 0 ... 0000 @b4_bop_m
+# BSET #xx:3,@aa:8
+BSET_ia		0111 1111 .... .... 0111 0000 0 ... 0000 @b4_bop_a
+# BSET Rn,Rd
+BSET_rr		0110 0000 .... .... @b2_rs_rd sz=0
+# BSET Rn,@ERd
+BSET_rm		0111 1101 .... 0000 0110 0000 .... 0000 @b4_rn_rd
+# BSET Rn,@aa:8
+BSET_ra		0111 1111 .... .... 0110 0000 .... 0000 @b4_rn_a
+# BSR d:8
+BSR		0101 0101 dsp:s8
+# BSR d:16
+BSR		0101 1100 0000 0000 dsp:s16
+# BST #xx:3,Rd
+BST_r		0110 0111 0 ... .... @b2_bop_r
+# BST #xx:3,@ERd
+BST_m		0111 1101 .... 0000 0110 0111 0 ... 0000 @b4_bop_m
+# BST #xx:3,@aa:8
+BST_a		0111 1111 .... .... 0110 0111 0 ... 0000 @b4_bop_a
+# BTST #xx:3,Rd
+BTST_ir		0111 0011 0 ... .... @b2_bop_r
+# BTST #xx:3,@ERd
+BTST_im		0111 1100 .... 0000 0111 0011 0 ... 0000 @b4_bop_m
+# BTST #xx:3,@aa:8
+BTST_ia		0111 1110 .... .... 0111 0011 0 ... 0000 @b4_bop_a
+# BTST Rn,Rd
+BTST_rr		0110 0011 .... .... @b2_rs_rd sz=0
+# BTST Rn,@ERd
+BTST_rm		0111 1100 .... 0000 0110 0011 .... 0000 @b4_rn_rd
+# BTST Rn,@aa:8
+BTST_ra		0111 1110 .... .... 0110 0011 .... 0000 @b4_rn_a
+# BXOR #xx:3,Rd
+BXOR_r		0111 0101 0 ... .... @b2_bop_r
+# BXOR #xx:3,@ERd
+BXOR_m		0111 1100 .... 0000 0111 0101 0 ... 0000 @b4_bop_m
+# BXOR #xx:3,@aa:8
+BXOR_a		0111 1110 .... .... 0111 0101 0 ... 0000 @b4_bop_a
+# CLRMAC
+#CLRMAC		0000 0001 1010 0000	
+# CMP.B #xx:8,Rd
+CMP_i		1010 .... .... .... @b2_r_imm
+# CMP.[BWL] Rs,Rd
+# DAS Rd
+# SUBX Rs,Rd
+{
+  DAS		0001 1111 00.. .... @b2_r
+  SUBX_r	0001 1110 .... .... @b2_rs_rd sz=0
+  CMP_r		0001 11.. .... .... @b2_sz_rs_rd
+}
+# CMP.W #xx:16,Rd
+CMP_i		0111 1001 0010 .... .... .... .... .... @b4_rd_imm
+#CMP.L #xx:32,ERd
+CMP_i		0111 1010 0010 .... @b6_rd_imm
+# DEC.B Rd
+# DEC.[WL] #[12],Rd
+# SUBS #imm,ERd
+# SUB.[BWL] Rs,Rd
+{
+  DEC		0001 1010 0000 .... @b2_idb imm=1 sz=0
+  DEC		0001 1011 .1.1 .... @b2_idwl
+  SUBS		0001 1011 .00. .... @b2_adds
+  SUB_r		0001 10.. .... .... @b2_sz_rs_rd
+}
+# DIVXS.B Rs,Rd
+DIVXS		0000 0001 1101 0000 0101 0001 .... .... @b4_rs_rd sz=0
+#DIVXS.W Rs,ERd
+DIVXS		0000 0001 1101 0000 0101 0011 .... .... @b4_rs_erd sz=1
+# DIVXU.B Rs,Rd
+DIVXU		0101 0001 .... .... @b2_rs_rd sz=0
+# DIVXU.W Rs,Rd
+DIVXU		0101 0011 .... .... @b2_rs_erd sz=1
+# EEPMOV.B
+EEPMOV_B	0111 1011 0101 1100 0101 1001 1000 1111
+EEPMOV_W 	0111 1011 1101 0100 0101 1001 1000 1111
+# EXTS.[WL] Rd
+EXTS		0001 0111 11.. .... @b2_r
+# EXTU.[WL] Rd
+EXTU		0001 0111 01.. .... @b2_r
+# JMP @ERn
+JMP_r		0101 1001 0 rs:3 0000
+# JMP @aa:24
+JMP_a24		0101 1010 abs:24
+# JMP @@aa:8
+JMP_aa8		0101 1011 abs:8
+# JSR @ERn
+JSR_r		0101 1101 0 rs:3 0000
+# JSR @aa:24
+JSR_a24		0101 1110 abs:24
+# JSR @@aa:8
+JSR_aa8		0101 1111 abs:8
+# LDC #xx:8,CCR
+LDC_i		0000 0111 .... .... @b2_imm
+# LDC #xx:8,CCR
+#LDC_E_i		0000 0001 0100 0001 0000 0111 .... .... @b4_imm
+# LDC Rs,CCR
+# LDC Rs,EXR
+LDC_r		0000 0011 00.. .... @b2_r
+# LDC @ERs,CCR
+LDC_m		0000 0001 0100 000 c:1 0110 1001 0... 0000 @b4_er
+# LDC @(d:16,ERs),CCR
+LDC_m		0000 0001 0100 000 c:1 0110 1111 0... 0000 @b6_er16
+# LDC @(d:24,ERs),CCR
+# STC CCR,@(d:24,ERd)
+LDCSTC_m	0000 0001 0100 000 c:1 0111 1000 .... 0000 @b10_er24
+# LDC @ERs+,CCR
+LDC_mp		0000 0001 0100 000 c:1 0110 1101 0... 0000 @b4_er
+# LDC @aa:16,CCR
+LDC_a		0000 0001 0100 000 c:1 0110 1011 0000 0000 @b6_abs16
+# LDC @aa:24,CCR
+LDC_a		0000 0001 0100 000 c:1 0110 1011 0010 0000 @b8_abs24
+# LDM @SP+,ERn-ERn
+LDM		0000 0001 num:4 0000 0110 1101 0111 0 rn:3
+# LDMAC ERn,MACx
+LDMAC		0000 0011 001 h:1 0 r:3
+# MAC @ERn+,@ERm+
+MAC		0000 0001 0110 0000 0110 1101 0 rn:3 0 rm:3
+# MOV.B #xx:8,Rd
+MOV_i		1111 .... .... .... @b2_r_imm
+# MOV.B @ERs,Rd
+MOV_mr		0110 1000 0 ... .... @b2_er_r dsp=0 sz=0
+# MOV.B @(d:16,ERs),Rd
+MOV_mr		0110 1110 0 ... .... @b2_er_r dsp=%dsp16 sz=0
+# MOV.B @(d:24,ERs),Rd
+MOV_mr		0111 1000 .... 0000 0110 1010 0010 .... @b8_er_r dsp=%dsp24 sz=0
+# MOV.B @ERs+,Rd
+MOV_mpr		0110 1100 0 ... .... @b2_er_r dsp=0 sz=0
+# MOV.B @aa:8,Rd
+MOV_ar		0010 .... .... .... @b2_r_abs sz=0 a=8
+# MOV.B @aa:16,Rd
+MOV_ar		0110 1010 0000 .... .... .... .... .... @b4_r_abs sz=0 a=16
+# MOV.B @aa:24,Rd
+MOV_ar		0110 1010 0010 .... @b6_r_abs sz=0 a=24
+# MOV.B Rs,@ERd
+MOV_rm		0110 1000 1 ... .... @b2_er_r dsp=0 sz=0
+# MOV.B Rs,@(d:16,ERd)
+MOV_rm		0110 1110 1 ... .... @b2_er_r dsp=%dsp16 sz=0
+# MOV.B Rs,@(d:24,ERd)
+MOV_rm		0111 1000 .... 0000 0110 1010 1010 .... @b8_er_r dsp=%dsp24 sz=0
+# MOV.B Rs,@-ERd
+MOV_rmp		0110 1100 1 ... .... @b2_er_r dsp=0 sz=0
+# MOV.B Rs,@aa:8
+MOV_ra		0011 .... .... .... @b2_r_abs sz=0 a=8
+# MOV.B Rs,@aa:16
+MOV_ra		0110 1010 1000 .... .... .... .... .... @b4_r_abs sz=0 a=16
+# MOV.B Rs,@aa:24
+MOV_ra		0110 1010 1010 .... @b6_r_abs sz=0 a=24
+# MOV.W #xx:16,Rd
+MOV_i		0111 1001 0000 .... .... .... .... .... @b4_rd_imm
+# MOV.W @ERs,Rd
+MOV_mr		0110 1001 0 ... .... @b2_er_r dsp=0 sz=1
+# MOV.W @(d:16,ERs),Rd
+MOV_mr		0110 1111 0 ... .... @b2_er_r dsp=%dsp16 sz=1
+# MOV.W @(d:24,ERs),Rd
+MOV_mr		0111 1000 .... 0000 0110 1011 0010 .... @b8_er_r dsp=%dsp24 sz=1
+# MOV.W @ERs+,Rd
+MOV_mpr		0110 1101 0 ... .... @b2_er_r dsp=0 sz=1
+# MOV.W @aa:16,Rd
+MOV_ar		0110 1011 0000 .... .... .... .... .... @b4_r_abs sz=1 a=16
+# MOV.W @aa:24,Rd
+MOV_ar		0110 1011 0010 .... @b6_r_abs sz=1 a=24
+# MOV.W Rs,@ERd
+MOV_rm		0110 1001 1 ... .... @b2_er_r dsp=0 sz=1
+# MOV.W Rs,@(d:16,ERd)
+MOV_rm		0110 1111 1 ... .... @b2_er_r dsp=%dsp16 sz=1
+# MOV.W Rs,@(d:24,ERd)
+MOV_rm		0111 1000 .... 0000 0110 1011 1010 .... @b8_er_r dsp=%dsp24 sz=1
+# MOV.W Rs,@-ERd
+MOV_rmp		0110 1101 1 ... .... @b2_er_r dsp=0 sz=1
+# MOV.W Rs,@aa:16
+MOV_ra		0110 1011 1000 .... .... .... .... .... @b4_r_abs sz=1 a=16
+# MOV.W Rs,@aa:24
+MOV_ra		0110 1011 1010 .... @b6_r_abs sz=1 a=24
+# MOV.L #xx:32,Rd
+MOV_i		0111 1010 0000 .... @b6_rd_imm
+# MOV.L @ERs,ERd
+MOV_mr		0000 0001 0000 0000 0110 1001 0 ... .... @b4_ers_erd_d
+# MOV.L @(d:16,ERs),ERd
+MOV_mr		0000 0001 0000 0000 0110 1111 0 ... .... @b6_ers_erd
+# MOV.L @(d:24,ERs),ERd
+MOV_mr		0000 0001 0000 0000 0111 1000 0 ... .... @b10_ers_erd
+# MOV.L @ERs+,ERd
+MOV_mpr		0000 0001 0000 0000 0110 1101 0 ... .... @b4_ers_erd_d
+# MOV.L @aa:16,ERd
+MOV_ar		0000 0001 0000 0000 0110 1011 0000 .... @b6_er_abs sz=2 a=16
+# MOV.L @aa:24,ERd
+MOV_ar		0000 0001 0000 0000 0110 1011 0010 .... @b8_er_abs sz=2 a=24
+# MOV.L ERs,@ERd
+MOV_rm		0000 0001 0000 0000 0110 1001 1 ... .... @b4_ers_erd_d
+# MOV.L ERs,@(d:16,ERd)
+MOV_rm		0000 0001 0000 0000 0110 1111 1 ... .... @b6_ers_erd
+# MOV.L ERs,@(d:24,ERd)
+MOV_rm		0000 0001 0000 0000 0111 1000 1 ... .... @b10_ers_erd
+# MOV.L ERs,@-ERd
+MOV_rmp		0000 0001 0000 0000 0110 1101 1 ... .... @b4_ers_erd_d
+# MOV.L ERs,@aa:16
+MOV_ra		0000 0001 0000 0000 0110 1011 1000 .... @b6_er_abs sz=2 a=16
+# MOV.L ERs,@aa:24
+MOV_ra		0000 0001 0000 0000 0110 1011 1010 .... @b8_er_abs sz=2 a=24
+# MOVFPE @aa:16,Rd
+MOVFPE	 	0110 1010 0100 .... .... .... .... .... @b4_r_abs a=16 sz=0
+# MOVTPE Rs,@aa:16
+MOVTPE		0110 1010 1100 .... .... .... .... .... @b4_r_abs a=16 sz=0
+# MULXS.B Rs,Rd
+MULXS		0000 0001 1100 0000 0101 0000 .... .... @b4_rs_rd sz=0
+# MULXS.W Rs,ERd
+MULXS		0000 0001 1100 0000 0101 0010 .... .... @b4_rs_erd sz=1
+# MULXU.B Rs,Rd
+MULXU		0101 0000 .... .... @b2_rs_rd sz=0
+# MULXU.W Rs,ERd
+MULXU		0101 0010 .... .... @b2_rs_erd sz=1
+# NEG.[BWL] Rd
+NEG		0001 0111 10.. .... @b2_r
+# NOP
+NOP		0000 0000
+# NOT.[BWL] Rd
+NOT		0001 0111 00.. .... @b2_r
+# OR.B #xx:8,Rd
+OR_i		1100 .... .... .... @b2_r_imm
+# OR.B Rs,Rd
+OR_r		0001 0100 .... .... @b2_rs_rd sz=0
+# OR.W #xx:16,Rd
+OR_i		0111 1001 0100 .... .... .... .... .... @b4_rd_imm
+# OR.W Rs,Rd
+OR_r		0110 0100 .... .... @b2_rs_rd sz=1
+# OR.L #xx:32,ERd
+OR_i		0111 1010 0100 .... @b6_rd_imm
+# OR.L ERs,ERd
+OR_r		0000 0001 1111 0000 0110 0100 0 ... .... @b4_ers_erd
+# ORC #xx:8,CCR
+ORC		0000 0100 .... ....  @b2_imm
+# ORC #xx:8,EXR
+ORC_E		0000 0001 0100 0001 0000 0100 .... ....  @b4_imm
+# ROTL.[BWL] Rd
+#ROTL		0001 0010 10 .. .... @b2_r
+# ROTR.[BWL] Rd
+#ROTR		0001 0011 10 .. .... @b2_r
+# ROTXL.[BWL] Rd
+#ROTXL		0001 0010 00 .. .... @b2_r
+# ROTXR.[BWL] Rd
+#ROTXR		0001 0011 00 .. .... @b2_r
+# RTE
+RTE		0101 0110 0111 0000
+# RTS
+RTS		0101 0100 0111 0000
+# SHAL.[BWL] Rd
+#SHAL		0001 0000 10 .. .... @b2_r
+# SHAR.[BWL] Rd
+#SHAR		0001 0001 10 .. .... @b2_r
+# SHLL.[BWL] Rd
+#SHLL		0001 0000 00 .. .... @b2_r
+# SHLR.[BWL] Rd
+#SHLR		0001 0001 00 .. .... @b2_r
+# SLEEP
+SLEEP		0000 0001 1000 0000
+# STC CCR,Rd
+# STC EXR,Rd
+STC_r		0000 0010 00.. .... @b2_r
+# STC CCR,@ERd
+STC_m		0000 0001 0100 000 c:1 0110 1001 1 ... 0000 @b4_er
+# STC CCR,@(d:16,ERd)
+STC_m		0000 0001 0100 000 c:1 0110 1111 1 ... 0000 @b6_er16
+# STC CCR,@-ERd
+STC_mp	        0000 0001 0100 000 c:1 0110 1101 1 ... 0000 @b4_er
+# STC CCR,@aa:16
+STC_a		0000 0001 0100 000 c:1 0110 1011 1000 0000 @b6_abs16
+# STC CCR,@aa:24
+STC_a		0000 0001 0100 000 c:1 0110 1011 1010 0000 @b8_abs24
+# STM ERn-ERm,@-sp
+STM		0000 0001 n:4 0000 0110 1101 1111 0 rn:3
+# STMAC MACH,ERn
+# STMAC MACL,ERn
+STMAC		0000 0010 001 h:1 0 rn:3
+# SUB.W #xx:16,Rd
+SUB_i		0111 1001 0011 .... .... .... .... .... @b4_rd_imm
+# SUB.L #xx:32,ERd
+SUB_i		0111 1010 0011 .... @b6_rd_imm
+# SUBX #xx:8,Rd
+SUBX_i		1011 .... .... .... @b2_r_imm
+# TAS @ERn
+TAS		0000 0001 1110 0000 0111 1011 0 rn:3 1100
+# TRAPA #x:2
+TRAPA		0101 0111 00 imm:2 0000
+# XOR.B #xx:8,Rd
+XOR_i		1101 .... .... .... @b2_r_imm
+# XOR.B Rs,Rd
+XOR_r		0001 0101 .... .... @b2_rs_rd sz=0
+# XOR.W #xx:16,Rd
+XOR_i		0111 1001 0101 .... .... .... .... .... @b4_rd_imm
+# XOR.W Rs,Rd
+XOR_r		0110 0101 .... .... @b2_rs_rd sz=1
+# XOR.L #xx:32,ERd
+XOR_i		0111 1010 0101 .... @b6_rd_imm
+# XOR.L ERs,ERd
+XOR_r		0000 0001 1111 0000 0110 0101 0 ... .... @b4_ers_erd
+# XORC #xx:8,CCR
+XORC		0000 0101 .... .... @b2_imm

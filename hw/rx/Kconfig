@@ -1,14 +1,10 @@
-config RX
+config RX62N_MCU
     bool
-
-config RX62N
-    bool
-    select RX
     select RX_ICU
-    select RENESAS_TMR8
+    select RENESAS_TMR
     select RENESAS_CMT
     select RENESAS_SCI
 
-config RX_VIRT
+config RX_GDBSIM
     bool
-    select RX62N
+    select RX62N_MCU

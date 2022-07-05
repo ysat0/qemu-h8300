@@ -21,12 +21,11 @@
 #include "qemu/qemu-print.h"
 #include "cpu.h"
 #include "exec/exec-all.h"
-#include "tcg-op.h"
+#include "tcg/tcg-op.h"
 #include "exec/cpu_ldst.h"
 #include "exec/helper-proto.h"
 #include "exec/helper-gen.h"
 #include "exec/translator.h"
-#include "trace-tcg.h"
 #include "exec/log.h"
 
 typedef struct DisasContext {
@@ -41,10 +40,17 @@ typedef struct DisasCompare {
     TCGCond cond;
 } DisasCompare;
 
-const char rx_crname[][6] = {
-    "psw", "pc", "usp", "fpsw", "", "", "", "",
-    "bpsw", "bpc", "isp", "fintv", "intb", "", "", "",
-};
+const char *rx_crname(uint8_t cr)
+{
+    static const char *cr_names[] = {
+        "psw", "pc", "usp", "fpsw", "", "", "", "",
+        "bpsw", "bpc", "isp", "fintv", "intb", "", "", ""
+    };
+    if (cr >= ARRAY_SIZE(cr_names)) {
+        return "illegal";
+    }
+    return cr_names[cr];
+}
 
 /* Target-specific values for dc->base.is_jmp.  */
 #define DISAS_JUMP    DISAS_TARGET_0
@@ -117,11 +123,11 @@ static int bdsp_s(DisasContext *ctx, int d)
 }
 
 /* Include the auto-generated decoder. */
-#include "decode.inc.c"
+#include "decode-insns.c.inc"
 
 void rx_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 {
-    RXCPU *cpu = RXCPU(cs);
+    RXCPU *cpu = RX_CPU(cs);
     CPURXState *env = &cpu->env;
     int i;
     uint32_t psw;
@@ -136,28 +142,15 @@ void rx_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     }
 }
 
-static bool use_goto_tb(DisasContext *dc, target_ulong dest)
-{
-    if (unlikely(dc->base.singlestep_enabled)) {
-        return false;
-    } else {
-        return true;
-    }
-}
-
 static void gen_goto_tb(DisasContext *dc, int n, target_ulong dest)
 {
-    if (use_goto_tb(dc, dest)) {
+    if (translator_use_goto_tb(&dc->base, dest)) {
         tcg_gen_goto_tb(n);
         tcg_gen_movi_i32(cpu_pc, dest);
         tcg_gen_exit_tb(dc->base.tb, n);
     } else {
         tcg_gen_movi_i32(cpu_pc, dest);
-        if (dc->base.singlestep_enabled) {
-            gen_helper_debug(cpu_env);
-        } else {
-            tcg_gen_lookup_and_goto_ptr();
-        }
+        tcg_gen_lookup_and_goto_ptr();
     }
     dc->base.is_jmp = DISAS_NORETURN;
 }
@@ -212,9 +205,9 @@ static inline TCGv rx_index_addr(DisasContext *ctx, TCGv mem,
     return NULL;
 }
 
-static inline TCGMemOp mi_to_mop(unsigned mi)
+static inline MemOp mi_to_mop(unsigned mi)
 {
-    static const TCGMemOp mop[5] = { MO_SB, MO_SW, MO_UL, MO_UW, MO_UB };
+    static const MemOp mop[5] = { MO_SB, MO_SW, MO_UL, MO_UW, MO_UB };
     tcg_debug_assert(mi < 5);
     return mop[mi];
 }
@@ -224,7 +217,7 @@ static inline TCGv rx_load_source(DisasContext *ctx, TCGv mem,
                                   int ld, int mi, int rs)
 {
     TCGv addr;
-    TCGMemOp mop;
+    MemOp mop;
     if (ld < 3) {
         mop = mi_to_mop(mi);
         addr = rx_index_addr(ctx, mem, ld, mop & MO_SIZE, rs);
@@ -365,7 +358,7 @@ static void move_to_cr(DisasContext *ctx, TCGv val, int cr)
     if (cr >= 8 && !is_privileged(ctx, 0)) {
         /* Some control registers can only be written in privileged mode. */
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "disallow control register write %s", rx_crname[cr]);
+                      "disallow control register write %s", rx_crname(cr));
         return;
     }
     z = tcg_const_i32(0);
@@ -1082,12 +1075,11 @@ static void rx_sub(TCGv ret, TCGv arg1, TCGv arg2)
     tcg_gen_xor_i32(temp, arg1, arg2);
     tcg_gen_and_i32(cpu_psw_o, cpu_psw_o, temp);
     tcg_temp_free_i32(temp);
-    /* CMP not requred return */
+    /* CMP not required return */
     if (ret) {
         tcg_gen_mov_i32(ret, cpu_psw_s);
     }
 }
-
 static void rx_cmp(TCGv dummy, TCGv arg1, TCGv arg2)
 {
     rx_sub(NULL, arg1, arg2);
@@ -1160,11 +1152,23 @@ static bool trans_SBB_mr(DisasContext *ctx, arg_SBB_mr *a)
     return true;
 }
 
+static void rx_abs(TCGv ret, TCGv arg1)
+{
+    TCGv neg;
+    TCGv zero;
+    neg = tcg_temp_new();
+    zero = tcg_const_i32(0);
+    tcg_gen_neg_i32(neg, arg1);
+    tcg_gen_movcond_i32(TCG_COND_LT, ret, arg1, zero, neg, arg1);
+    tcg_temp_free(neg);
+    tcg_temp_free(zero);
+}
+
 /* abs rd */
 /* abs rs, rd */
 static bool trans_ABS_rr(DisasContext *ctx, arg_ABS_rr *a)
 {
-    rx_gen_op_rr(tcg_gen_abs_i32, a->rd, a->rs);
+    rx_gen_op_rr(rx_abs, a->rd, a->rs);
     return true;
 }
 
@@ -1856,7 +1860,7 @@ static bool trans_MVTACLO(DisasContext *ctx, arg_MVTACLO *a)
 /* racw #imm */
 static bool trans_RACW(DisasContext *ctx, arg_RACW *a)
 {
-    TCGv imm = tcg_const_i32(a->imm);
+    TCGv imm = tcg_const_i32(a->imm + 1);
     gen_helper_racw(cpu_env, imm);
     tcg_temp_free(imm);
     return true;
@@ -2301,19 +2305,6 @@ static void rx_tr_insn_start(DisasContextBase *dcbase, CPUState *cs)
     tcg_gen_insn_start(ctx->base.pc_next);
 }
 
-static bool rx_tr_breakpoint_check(DisasContextBase *dcbase, CPUState *cs,
-                                    const CPUBreakpoint *bp)
-{
-    DisasContext *ctx = container_of(dcbase, DisasContext, base);
-
-    /* We have hit a breakpoint - make sure PC is up-to-date */
-    tcg_gen_movi_i32(cpu_pc, ctx->base.pc_next);
-    gen_helper_debug(cpu_env);
-    ctx->base.is_jmp = DISAS_NORETURN;
-    ctx->base.pc_next += 1;
-    return true;
-}
-
 static void rx_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
 {
     DisasContext *ctx = container_of(dcbase, DisasContext, base);
@@ -2336,14 +2327,11 @@ static void rx_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
         gen_goto_tb(ctx, 0, dcbase->pc_next);
         break;
     case DISAS_JUMP:
-        if (ctx->base.singlestep_enabled) {
-            gen_helper_debug(cpu_env);
-        } else {
-            tcg_gen_lookup_and_goto_ptr();
-        }
+        tcg_gen_lookup_and_goto_ptr();
         break;
     case DISAS_UPDATE:
         tcg_gen_movi_i32(cpu_pc, ctx->base.pc_next);
+        /* fall through */
     case DISAS_EXIT:
         tcg_gen_exit_tb(NULL, 0);
         break;
@@ -2364,7 +2352,6 @@ static const TranslatorOps rx_tr_ops = {
     .init_disas_context = rx_tr_init_disas_context,
     .tb_start           = rx_tr_tb_start,
     .insn_start         = rx_tr_insn_start,
-    .breakpoint_check   = rx_tr_breakpoint_check,
     .translate_insn     = rx_tr_translate_insn,
     .tb_stop            = rx_tr_tb_stop,
     .disas_log          = rx_tr_disas_log,

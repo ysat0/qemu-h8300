@@ -18,6 +18,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu/bitops.h"
+#include "qemu/log.h"
 #include "cpu.h"
 #include "exec/exec-all.h"
 #include "exec/helper-proto.h"
@@ -175,7 +176,7 @@ void helper_eepmovw(CPUH8300State *env)
 static inline void QEMU_NORETURN raise_exception(CPUH8300State *env, int index,
                                                  uintptr_t retaddr)
 {
-    CPUState *cs = CPU(h8300_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
 
     cs->exception_index = index;
     cpu_loop_exit_restore(cs, retaddr);
@@ -183,7 +184,7 @@ static inline void QEMU_NORETURN raise_exception(CPUH8300State *env, int index,
 
 void QEMU_NORETURN helper_sleep(CPUH8300State *env)
 {
-    CPUState *cs = CPU(h8300_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
 
     cs->halted = 1;
     env->in_sleep = 1;
@@ -192,7 +193,7 @@ void QEMU_NORETURN helper_sleep(CPUH8300State *env)
 
 void QEMU_NORETURN helper_debug(CPUH8300State *env)
 {
-    CPUState *cs = CPU(h8300_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
 
     cs->exception_index = EXCP_DEBUG;
     cpu_loop_exit(cs);

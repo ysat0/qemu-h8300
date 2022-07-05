@@ -11,7 +11,7 @@
 #define HW_NET_NE2000_LOCAL_H
 
 #include "hw/hw.h"
-#include "hw/qdev.h"
+#include "hw/qdev-properties.h"
 #include "net/net.h"
 
 void ne2000_init(NICInfo *nd, uint32_t base, qemu_irq irq);

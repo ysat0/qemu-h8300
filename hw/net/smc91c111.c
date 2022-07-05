@@ -130,7 +130,7 @@ static void smc91c111_update(smc91c111_state *s)
 
 static int smc91c111_can_receive(smc91c111_state *s)
 {
-    int num_packets = (s->type ? 3 : 4);
+    int num_packets = (s->type ? NUM_PACKETS_96 : NUM_PACKETS);
     if ((s->rcr & RCR_RXEN) == 0 || (s->rcr & RCR_SOFT_RST)) {
         return 1;
     }
@@ -839,10 +839,9 @@ void smc91c96_init(NICInfo *nd, uint32_t base, qemu_irq irq)
     SysBusDevice *s;
 
     qemu_check_nic_model(nd, "smc91c111");
-    dev = qdev_create(NULL, TYPE_SMC91C111);
+    dev = qdev_new(TYPE_SMC91C111);
     qdev_set_nic_properties(dev, nd);
     qdev_prop_set_uint32(dev, "chiptype", 1);
-    qdev_init_nofail(dev);
     s = SYS_BUS_DEVICE(dev);
     sysbus_mmio_map(s, 0, base);
     sysbus_connect_irq(s, 0, irq);

@@ -24,9 +24,11 @@
 #include "hw/hw.h"
 #include "hw/sysbus.h"
 #include "hw/registerfields.h"
+#include "hw/qdev-properties.h"
 #include "hw/intc/h8s_intc.h"
 #include "qemu/error-report.h"
 #include "qemu/bitops.h"
+#include "migration/vmstate.h"
 
 REG16(IPRA, 0)
 REG16(IPRB, 2)
@@ -136,15 +138,15 @@ static void h8sintc_set_irq(void *opaque, int n_IRQ, int level)
     }
     if (enable) {
         set_pending(intc, n_IRQ, 1);
-        if (atomic_read(&intc->req_irq) < 0) {
-            atomic_set(&intc->req_irq, n_IRQ);
+        if (qatomic_read(&intc->req_irq) < 0) {
+            qatomic_set(&intc->req_irq, n_IRQ);
             qemu_set_irq(intc->irq, (pri(intc, n_IRQ) << 8) | n_IRQ);
         }
     } else {
         if (trigger_mode(intc, n_IRQ) == 0) {
             set_pending(intc, n_IRQ, 0);
-            if (atomic_read(&intc->req_irq) == n_IRQ) {
-                atomic_set(&intc->req_irq, -1);
+            if (qatomic_read(&intc->req_irq) == n_IRQ) {
+                qatomic_set(&intc->req_irq, -1);
                 qemu_set_irq(intc->irq, 0);
             }
         }
@@ -160,11 +162,11 @@ static void h8sintc_ack_irq(void *opaque, int no, int level)
     int max_pri;
     int ext;
 
-    n_IRQ = atomic_read(&intc->req_irq);
+    n_IRQ = qatomic_read(&intc->req_irq);
     if (n_IRQ < 0) {
         return;
     }
-    atomic_set(&intc->req_irq, -1);
+    qatomic_set(&intc->req_irq, -1);
     if (level == 0) {
         return;
     }
@@ -192,7 +194,7 @@ static void h8sintc_ack_irq(void *opaque, int no, int level)
     } while (base < NR_IRQS);
 
     if (n_IRQ >= 0) {
-        atomic_set(&intc->req_irq, n_IRQ);
+        qatomic_set(&intc->req_irq, n_IRQ);
         qemu_set_irq(intc->irq, (pri(intc, n_IRQ) << 8) | n_IRQ);
     }
 }
@@ -204,7 +206,7 @@ static void clear_pend_irq(H8SINTCState *intc)
         if (extract16(intc->isr, i, 1) == 0 &&
             extract64(intc->req[0], i + 16, 1)) {
             intc->req[0] = deposit64(intc->req[0], i + 16, 1, 0);
-            if (atomic_read(&intc->req_irq) == i + 16) {
+            if (qatomic_read(&intc->req_irq) == i + 16) {
                 h8sintc_ack_irq(intc, i + 16, 0);
             }
         }
@@ -291,14 +293,16 @@ static void intc_isr_write(void *opaque, hwaddr addr, uint64_t val,
                            unsigned size)
 {
     H8SINTCState *intc = opaque;
+    int im;
     switch(addr) {
     case A_INTCR:
         intc->intcr = val;
-        *(uint32_t *)(intc->im) = extract32(val, 4, 2);
-        if (*(uint32_t *)(intc->im) > 2) {
+        im = extract32(val, 4, 2);
+        if (im > 2) {
             qemu_log_mask(LOG_GUEST_ERROR, "h8s_intc: Invalid INTM %d\n",
-                          *(uint32_t *)(intc->im));
+                          im);
         }
+        h8300_cpu_setim(im);
         break;
     case A_IER:
         intc->ier = val;
@@ -357,16 +361,10 @@ static const VMStateDescription vmstate_h8sintc = {
     }
 };
 
-static Property h8sintc_properties[] = {
-    DEFINE_PROP_PTR("cpu-im", H8SINTCState, im),
-    DEFINE_PROP_END_OF_LIST(),
-};
-
 static void h8sintc_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    dc->props = h8sintc_properties;
     dc->realize = h8sintc_realize;
     dc->vmsd = &vmstate_h8sintc;
 }

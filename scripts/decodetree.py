@@ -178,13 +178,9 @@ class Field:
 
     def str_extract(self):
         if self.pos == 0 and self.len ==0:
-            extr = 'dummy'
-        else:
-            if self.sign:
-                extr = 'sextract32'
-            else:
-                extr = 'extract32'
-        return '{0}(insn, {1}, {2})'.format(extr, self.pos, self.len)
+            return 'dummy(insn, {0}, {1})'.format(self.pos, self.len)
+        s = 's' if self.sign else ''
+        return f'{s}extract{bitop_width}(insn, {self.pos}, {self.len})'
 
     def __eq__(self, other):
         return self.sign == other.sign and self.sign == other.sign

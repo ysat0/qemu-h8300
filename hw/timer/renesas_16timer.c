@@ -21,12 +21,14 @@
 #include "qemu/log.h"
 #include "qapi/error.h"
 #include "qemu/timer.h"
-#include "cpu.h"
 #include "hw/hw.h"
+#include "hw/irq.h"
 #include "hw/sysbus.h"
 #include "hw/registerfields.h"
+#include "hw/qdev-properties.h"
 #include "hw/timer/renesas_16timer.h"
 #include "qemu/error-report.h"
+#include "migration/vmstate.h"
 
 REG8(TSTR, 0)
     FIELD(TSTR, STR0, 0, 3)
@@ -377,7 +379,7 @@ static const VMStateDescription vmstate_r16 = {
     .minimum_version_id = 1,
     .fields = (VMStateField[]) {
         VMSTATE_END_OF_LIST()
-    }
+    },
 };
 
 static Property r16_properties[] = {
@@ -389,10 +391,10 @@ static void r16_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    dc->props = r16_properties;
     dc->vmsd = &vmstate_r16;
     dc->reset = r16_reset;
     dc->realize = r16_realize;
+    device_class_set_props(dc, r16_properties);
 }
 
 static const TypeInfo r16_info = {

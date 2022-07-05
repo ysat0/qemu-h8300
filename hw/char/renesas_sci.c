@@ -2,9 +2,11 @@
  * Renesas Serial Communication Interface
  *
  * Datasheet: RX62N Group, RX621 Group User's Manual: Hardware
- * (Rev.1.40 R01UH0033EJ0140)
+ *            (Rev.1.40 R01UH0033EJ0140)
  *
  * Copyright (c) 2019 Yoshinori Sato
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -21,14 +23,12 @@
 
 #include "qemu/osdep.h"
 #include "qemu/log.h"
-#include "qapi/error.h"
-#include "qemu-common.h"
-#include "cpu.h"
-#include "hw/hw.h"
-#include "hw/sysbus.h"
+#include "hw/irq.h"
 #include "hw/registerfields.h"
+#include "hw/qdev-properties.h"
+#include "hw/qdev-properties-system.h"
 #include "hw/char/renesas_sci.h"
-#include "qemu/error-report.h"
+#include "migration/vmstate.h"
 
 /* SCI register map */
 REG8(SMR, 0)
@@ -41,7 +41,7 @@ REG8(SMR, 0)
   FIELD(SMR, CM,   7, 1)
 REG8(BRR, 1)
 REG8(SCR, 2)
-  FIELD(SCR, CKE, 0, 2)
+  FIELD(SCR, CKE,  0, 2)
   FIELD(SCR, TEIE, 2, 1)
   FIELD(SCR, MPIE, 3, 1)
   FIELD(SCR, RE,   4, 1)
@@ -53,7 +53,7 @@ REG8(SSR, 4)
   FIELD(SSR, MPBT, 0, 1)
   FIELD(SSR, MPB,  1, 1)
   FIELD(SSR, TEND, 2, 1)
-  FIELD(SSR, ERR, 3, 3)
+  FIELD(SSR, ERR,  3, 3)
     FIELD(SSR, PER,  3, 1)
     FIELD(SSR, FER,  4, 1)
     FIELD(SSR, ORER, 5, 1)
@@ -102,8 +102,7 @@ static void send_byte(RSCIState *sci)
     if (qemu_chr_fe_backend_connected(&sci->chr)) {
         qemu_chr_fe_write_all(&sci->chr, &sci->tdr, 1);
     }
-    timer_mod(sci->timer,
-              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + sci->trtime);
+    timer_mod(&sci->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + sci->trtime);
     sci->ssr = FIELD_DP8(sci->ssr, SSR, TEND, 0);
     sci->ssr = FIELD_DP8(sci->ssr, SSR, TDRE, 1);
     qemu_set_irq(sci->irq[TEI], 0);
@@ -138,30 +137,31 @@ static void update_trtime(RSCIState *sci)
     sci->trtime /= sci->input_freq;
 }
 
-#define IS_TR_ENABLED(scr) \
-    (FIELD_EX8(scr, SCR, TE) || FIELD_EX8(scr, SCR, RE))
-
-static void sci_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
+static bool sci_is_tr_enabled(RSCIState *sci)
 {
-    hwaddr offset = addr & 0x07;
+    return FIELD_EX8(sci->scr, SCR, TE) || FIELD_EX8(sci->scr, SCR, RE);
+}
+
+static void sci_write(void *opaque, hwaddr offset, uint64_t val, unsigned size)
+{
     RSCIState *sci = RSCI(opaque);
 
     switch (offset) {
     case A_SMR:
-        if (!IS_TR_ENABLED(sci->scr)) {
+        if (!sci_is_tr_enabled(sci)) {
             sci->smr = val;
             update_trtime(sci);
         }
         break;
     case A_BRR:
-        if (!IS_TR_ENABLED(sci->scr)) {
+        if (!sci_is_tr_enabled(sci)) {
             sci->brr = val;
             update_trtime(sci);
         }
         break;
     case A_SCR:
         sci->scr = val;
-        if ((sci->rev >= 1) && FIELD_EX8(sci->scr, SCR, TE)) {
+        if (FIELD_EX8(sci->scr, SCR, TE)) {
             sci->ssr = FIELD_DP8(sci->ssr, SSR, TDRE, 1);
             sci->ssr = FIELD_DP8(sci->ssr, SSR, TEND, 1);
             if (FIELD_EX8(sci->scr, SCR, TIE)) {
@@ -177,7 +177,7 @@ static void sci_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
         break;
     case A_TDR:
         sci->tdr = val;
-        if ((sci->rev >= 1) && FIELD_EX8(sci->ssr, SSR, TEND)) {
+        if (FIELD_EX8(sci->ssr, SSR, TEND)) {
             send_byte(sci);
         } else {
             sci->ssr = FIELD_DP8(sci->ssr, SSR, TDRE, 0);
@@ -192,9 +192,6 @@ static void sci_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
             FIELD_EX8(sci->ssr, SSR, ERR) == 0) {
             qemu_set_irq(sci->irq[ERI], 0);
         }
-        if ((sci->rev == 0) && FIELD_EX8(sci->ssr, SSR, TDRE) == 0) {
-            send_byte(sci);
-        }
         break;
     case A_RDR:
         qemu_log_mask(LOG_GUEST_ERROR, "reneas_sci: RDR is read only.\n");
@@ -204,14 +201,14 @@ static void sci_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
     case A_SEMR: /* SEMR */
         sci->semr = val; break;
     default:
-        qemu_log_mask(LOG_UNIMP, "renesas_sci: Register 0x%" HWADDR_PRIX
-                      " not implemented\n", offset);
+        qemu_log_mask(LOG_UNIMP, "renesas_sci: Register 0x%" HWADDR_PRIX " "
+                                 "not implemented\n",
+                      offset);
     }
 }
 
-static uint64_t sci_read(void *opaque, hwaddr addr, unsigned size)
+static uint64_t sci_read(void *opaque, hwaddr offset, unsigned size)
 {
-    hwaddr offset = addr & 0x07;
     RSCIState *sci = RSCI(opaque);
 
     switch (offset) {
@@ -244,9 +241,8 @@ static const MemoryRegionOps sci_ops = {
     .write = sci_write,
     .read  = sci_read,
     .endianness = DEVICE_NATIVE_ENDIAN,
-    .impl = {
-        .max_access_size = 1,
-    },
+    .impl.max_access_size = 1,
+    .valid.max_access_size = 1,
 };
 
 static void rsci_reset(DeviceState *dev)
@@ -262,7 +258,7 @@ static void rsci_reset(DeviceState *dev)
     sci->rx_next = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
 }
 
-static void sci_event(void *opaque, int event)
+static void sci_event(void *opaque, QEMUChrEvent event)
 {
     RSCIState *sci = RSCI(opaque);
     if (event == CHR_EVENT_BREAK) {
@@ -284,7 +280,6 @@ static void rsci_realize(DeviceState *dev, Error **errp)
     }
     qemu_chr_fe_set_handlers(&sci->chr, can_receive, receive,
                              sci_event, NULL, sci, NULL, true);
-    rsci_reset(dev);
 }
 
 static void rsci_init(Object *obj)
@@ -300,21 +295,32 @@ static void rsci_init(Object *obj)
     for (i = 0; i < SCI_NR_IRQ; i++) {
         sysbus_init_irq(d, &sci->irq[i]);
     }
-    sci->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, txend, sci);
+    timer_init_ns(&sci->timer, QEMU_CLOCK_VIRTUAL, txend, sci);
 }
 
-static const VMStateDescription vmstate_rcmt = {
+static const VMStateDescription vmstate_rsci = {
     .name = "renesas-sci",
     .version_id = 1,
     .minimum_version_id = 1,
     .fields = (VMStateField[]) {
+        VMSTATE_INT64(trtime, RSCIState),
+        VMSTATE_INT64(rx_next, RSCIState),
+        VMSTATE_UINT8(smr, RSCIState),
+        VMSTATE_UINT8(brr, RSCIState),
+        VMSTATE_UINT8(scr, RSCIState),
+        VMSTATE_UINT8(tdr, RSCIState),
+        VMSTATE_UINT8(ssr, RSCIState),
+        VMSTATE_UINT8(rdr, RSCIState),
+        VMSTATE_UINT8(scmr, RSCIState),
+        VMSTATE_UINT8(semr, RSCIState),
+        VMSTATE_UINT8(read_ssr, RSCIState),
+        VMSTATE_TIMER(timer, RSCIState),
         VMSTATE_END_OF_LIST()
     }
 };
 
 static Property rsci_properties[] = {
     DEFINE_PROP_UINT64("input-freq", RSCIState, input_freq, 0),
-    DEFINE_PROP_UINT32("rev", RSCIState, rev, 1),
     DEFINE_PROP_CHR("chardev", RSCIState, chr),
     DEFINE_PROP_END_OF_LIST(),
 };
@@ -324,14 +330,14 @@ static void rsci_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->realize = rsci_realize;
-    dc->props = rsci_properties;
-    dc->vmsd = &vmstate_rcmt;
+    dc->vmsd = &vmstate_rsci;
     dc->reset = rsci_reset;
+    device_class_set_props(dc, rsci_properties);
 }
 
 static const TypeInfo rsci_info = {
-    .name       = TYPE_RENESAS_SCI,
-    .parent     = TYPE_SYS_BUS_DEVICE,
+    .name = TYPE_RENESAS_SCI,
+    .parent = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(RSCIState),
     .instance_init = rsci_init,
     .class_init = rsci_class_init,

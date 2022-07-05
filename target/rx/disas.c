@@ -100,7 +100,7 @@ static int bdsp_s(DisasContext *ctx, int d)
 }
 
 /* Include the auto-generated decoder.  */
-#include "decode.inc.c"
+#include "decode-insns.c.inc"
 
 static void dump_bytes(DisasContext *ctx)
 {
@@ -353,7 +353,7 @@ static bool trans_POP(DisasContext *ctx, arg_POP *a)
 /* popc rx */
 static bool trans_POPC(DisasContext *ctx, arg_POPC *a)
 {
-    prt("pop\tr%s", rx_crname[a->cr]);
+    prt("pop\tr%s", rx_crname(a->cr));
     return true;
 }
 
@@ -384,7 +384,7 @@ static bool trans_PUSH_m(DisasContext *ctx, arg_PUSH_m *a)
 /* pushc rx */
 static bool trans_PUSHC(DisasContext *ctx, arg_PUSHC *a)
 {
-    prt("push\t%s", rx_crname[a->cr]);
+    prt("push\t%s", rx_crname(a->cr));
     return true;
 }
 
@@ -1354,21 +1354,21 @@ static bool trans_MVTIPL(DisasContext *ctx, arg_MVTIPL *a)
 /* mvtc #imm, rd */
 static bool trans_MVTC_i(DisasContext *ctx, arg_MVTC_i *a)
 {
-    prt("mvtc\t#0x%08x, %s", a->imm, rx_crname[a->cr]);
+    prt("mvtc\t#0x%08x, %s", a->imm, rx_crname(a->cr));
     return true;
 }
 
 /* mvtc rs, rd */
 static bool trans_MVTC_r(DisasContext *ctx, arg_MVTC_r *a)
 {
-    prt("mvtc\tr%d, %s", a->rs, rx_crname[a->cr]);
+    prt("mvtc\tr%d, %s", a->rs, rx_crname(a->cr));
     return true;
 }
 
 /* mvfc rs, rd */
 static bool trans_MVFC(DisasContext *ctx, arg_MVFC *a)
 {
-    prt("mvfc\t%s, r%d", rx_crname[a->cr], a->rd);
+    prt("mvfc\t%s, r%d", rx_crname(a->cr), a->rd);
     return true;
 }
 

@@ -22,6 +22,9 @@
 #include "exec/log.h"
 #include "exec/cpu_ldst.h"
 #include "sysemu/sysemu.h"
+#include "hw/irq.h"
+
+static int intmode;
 
 void h8300_cpu_unpack_ccr(CPUH8300State *env, uint32_t ccr)
 {
@@ -43,10 +46,11 @@ void h8300_cpu_unpack_exr(CPUH8300State *env, uint32_t exr)
 
 void h8300_cpu_do_interrupt(CPUState *cs)
 {
-    H8300CPU *cpu = H8300CPU(cs);
+    H8300CPU *cpu = H8300_CPU(cs);
     CPUH8300State *env = &cpu->env;
     int do_irq = cs->interrupt_request & CPU_INTERRUPT_HARD;
     uint32_t save_ccr_pc;
+
     uint32_t exr;
 
     env->in_sleep = 0;
@@ -54,39 +58,39 @@ void h8300_cpu_do_interrupt(CPUState *cs)
     save_ccr_pc = deposit32(0, 24, 8, h8300_cpu_pack_ccr(env));
     save_ccr_pc = deposit32(save_ccr_pc, 0, 24, env->pc);
     env->regs[7] -= 4;
-    cpu_stl_all(env, env->regs[7], save_ccr_pc);
+    cpu_stl_data(env, env->regs[7], save_ccr_pc);
     env->ccr_i = 1;
-    switch (env->im ) {
+    switch (intmode) {
     case 1:
         env->ccr_ui = 1;
         break;
     case 2:
         exr = deposit32(0, 8, 8, h8300_cpu_pack_exr(env));
         env->regs[7] -= 2;
-        cpu_stw_all(env, env->regs[7], exr);
+        cpu_stw_data(env, env->regs[7], exr);
         env->exr_i = env->req_pri;
         env->exr_t = 0;
         break;
     }
 
     if (do_irq) {
-        env->pc = cpu_ldl_all(env, env->ack_irq * 4);
+        env->pc = cpu_ldl_data(env, env->ack_irq * 4);
         cs->interrupt_request &= ~CPU_INTERRUPT_HARD;
         qemu_set_irq(env->ack, 1);
         qemu_log_mask(CPU_LOG_INT,
                       "interrupt 0x%02x raised\n", env->ack_irq);
     } else {
-        env->pc = cpu_ldl_all(env, cs->exception_index * 4);
+        env->pc = cpu_ldl_data(env, cs->exception_index * 4);
     }
 }
 
 bool h8300_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 {
-    H8300CPU *cpu = H8300CPU(cs);
+    H8300CPU *cpu = H8300_CPU(cs);
     CPUH8300State *env = &cpu->env;
     int pri;
 
-    switch(env->im) {
+    switch(intmode) {
     case 0:
         pri = env->ccr_i << 3;
         break;
@@ -112,3 +116,9 @@ hwaddr h8300_cpu_get_phys_page_debug(CPUState *cs, vaddr addr)
 {
     return addr;
 }
+
+void h8300_cpu_setim(int im)
+{
+    intmode = im;
+}
+

@@ -28,14 +28,15 @@
 
 static void h8300_cpu_set_pc(CPUState *cs, vaddr value)
 {
-    H8300CPU *cpu = H8300CPU(cs);
+    H8300CPU *cpu = H8300_CPU(cs);
 
     cpu->env.pc = value;
 }
 
-static void h8300_cpu_synchronize_from_tb(CPUState *cs, TranslationBlock *tb)
+static void h8300_cpu_synchronize_from_tb(CPUState *cs,
+                                          const TranslationBlock *tb)
 {
-    H8300CPU *cpu = H8300CPU(cs);
+    H8300CPU *cpu = H8300_CPU(cs);
 
     cpu->env.pc = tb->pc;
 }
@@ -45,14 +46,14 @@ static bool h8300_cpu_has_work(CPUState *cs)
     return cs->interrupt_request & CPU_INTERRUPT_HARD;
 }
 
-static void h8300_cpu_reset(CPUState *s)
+static void h8300_cpu_reset(DeviceState *dev)
 {
-    H8300CPU *cpu = H8300CPU(s);
-    H8300CPUClass *rcc = H8300CPU_GET_CLASS(cpu);
+    H8300CPU *cpu = H8300_CPU(dev);
+    H8300CPUClass *rcc = H8300_CPU_GET_CLASS(cpu);
     CPUH8300State *env = &cpu->env;
     uint32_t *resetvec;
 
-    rcc->parent_reset(s);
+    rcc->parent_reset(dev);
 
     memset(env, 0, offsetof(CPUH8300State, end_reset_fields));
 
@@ -75,7 +76,7 @@ static void h8300_cpu_list_entry(gpointer data, gpointer user_data)
 void h8300_cpu_list(void)
 {
     GSList *list;
-    list = object_class_get_list_sorted(TYPE_H8300CPU, false);
+    list = object_class_get_list_sorted(TYPE_H8300_CPU, false);
     g_slist_foreach(list, h8300_cpu_list_entry, NULL);
     g_slist_free(list);
 }
@@ -98,7 +99,7 @@ static ObjectClass *h8300_cpu_class_by_name(const char *cpu_model)
 static void h8300_cpu_realize(DeviceState *dev, Error **errp)
 {
     CPUState *cs = CPU(dev);
-    H8300CPUClass *rcc = H8300CPU_GET_CLASS(dev);
+    H8300CPUClass *rcc = H8300_CPU_GET_CLASS(dev);
     Error *local_err = NULL;
 
     cpu_exec_realizefn(cs, &local_err);
@@ -137,7 +138,7 @@ static void h8300_cpu_disas_set_info(CPUState *cpu, disassemble_info *info)
 static void h8300_cpu_init(Object *obj)
 {
     CPUState *cs = CPU(obj);
-    H8300CPU *cpu = H8300CPU(obj);
+    H8300CPU *cpu = H8300_CPU(obj);
     CPUH8300State *env = &cpu->env;
 
     cs->env_ptr = env;
@@ -161,50 +162,70 @@ static bool h8300_cpu_tlb_fill(CPUState *cs, vaddr addr, int size,
     return true;
 }
 
-static void rxcpu_class_init(ObjectClass *klass, void *data)
+#ifndef CONFIG_USER_ONLY
+#include "hw/core/sysemu-cpu-ops.h"
+
+static const struct SysemuCPUOps h8300_sysemu_ops = {
+    .get_phys_page_debug = h8300_cpu_get_phys_page_debug,
+};
+#endif
+
+#include "hw/core/tcg-cpu-ops.h"
+
+static const struct TCGCPUOps h8300_tcg_ops = {
+    .initialize = h8300_translate_init,
+    .synchronize_from_tb = h8300_cpu_synchronize_from_tb,
+    .tlb_fill = h8300_cpu_tlb_fill,
+
+#ifndef CONFIG_USER_ONLY
+    .cpu_exec_interrupt = h8300_cpu_exec_interrupt,
+    .do_interrupt = h8300_cpu_do_interrupt,
+#endif /* !CONFIG_USER_ONLY */
+};
+
+static void h8300cpu_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     CPUClass *cc = CPU_CLASS(klass);
-    H8300CPUClass *rcc = H8300CPU_CLASS(klass);
+    H8300CPUClass *rcc = H8300_CPU_CLASS(klass);
 
     device_class_set_parent_realize(dc, h8300_cpu_realize,
                                     &rcc->parent_realize);
 
-    rcc->parent_reset = cc->reset;
-    cc->reset = h8300_cpu_reset;
+    device_class_set_parent_reset(dc, h8300_cpu_reset,
+                                  &rcc->parent_reset);
 
     cc->class_by_name = h8300_cpu_class_by_name;
     cc->has_work = h8300_cpu_has_work;
-    cc->do_interrupt = h8300_cpu_do_interrupt;
-    cc->cpu_exec_interrupt = h8300_cpu_exec_interrupt;
     cc->dump_state = h8300_cpu_dump_state;
     cc->set_pc = h8300_cpu_set_pc;
-    cc->synchronize_from_tb = h8300_cpu_synchronize_from_tb;
+#ifndef CONFIG_USER_ONLY
+    cc->sysemu_ops = &h8300_sysemu_ops;
+#endif
+
     cc->gdb_read_register = h8300_cpu_gdb_read_register;
     cc->gdb_write_register = h8300_cpu_gdb_write_register;
-    cc->get_phys_page_debug = h8300_cpu_get_phys_page_debug;
     cc->disas_set_info = h8300_cpu_disas_set_info;
-    cc->tcg_initialize = h8300_translate_init;
-    cc->tlb_fill = h8300_cpu_tlb_fill;
     cc->gdb_num_core_regs = 26;
+    cc->tcg_ops = &h8300_tcg_ops;
 }
 
-static const TypeInfo rxcpu_info = {
-    .name = TYPE_H8300CPU,
+static const TypeInfo h8300cpu_info = {
+    .name = TYPE_H8300_CPU,
     .parent = TYPE_CPU,
-    .instance_size = sizeof(H8300CPU),
+    .instance_size = sizeof(H8300_CPU),
     .instance_init = h8300_cpu_init,
     .abstract = false,
     .class_size = sizeof(H8300CPUClass),
-    .class_init = rxcpu_class_init,
+    .class_init = h8300cpu_class_init,
 };
 
-static void rxcpu_register_types(void)
+static void h8300cpu_register_types(void)
 {
-    type_register_static(&rxcpu_info);
+    type_register_static(&h8300cpu_info);
 }
 
-type_init(rxcpu_register_types)
+type_init(h8300cpu_register_types)
 
 void h8300_load_image(H8300CPU *cpu, const char *filename,
                    uint32_t start, uint32_t size)

@@ -57,3 +57,30 @@ config OMPIC
 
 config RX_ICU
     bool
+
+config LOONGSON_LIOINTC
+    bool
+
+config RISCV_ACLINT
+    bool
+
+config RISCV_APLIC
+    bool
+
+config RISCV_IMSIC
+    bool
+
+config SIFIVE_PLIC
+    bool
+
+config GOLDFISH_PIC
+    bool
+
+config M68K_IRQC
+    bool
+
+config H8300H_INTC
+    bool
+
+config H8S_INTC
+    bool

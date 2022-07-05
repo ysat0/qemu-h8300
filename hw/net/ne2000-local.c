@@ -24,7 +24,7 @@
 #include "qemu/osdep.h"
 #include "hw/sysbus.h"
 #include "hw/net/ne2000-local.h"
-#include "hw/qdev.h"
+#include "migration/vmstate.h"
 #include "ne2000.h"
 #include "sysemu/sysemu.h"
 #include "qapi/error.h"
@@ -84,7 +84,7 @@ static void local_ne2000_class_initfn(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->realize = local_ne2000_realizefn;
-    dc->props = ne2000_local_properties;
+    device_class_set_props(dc, ne2000_local_properties);
     dc->vmsd = &vmstate_local_ne2000;
     set_bit(DEVICE_CATEGORY_NETWORK, dc->categories);
 }
@@ -128,9 +128,10 @@ static void local_ne2000_instance_init(Object *obj)
 {
     object_property_add(obj, "bootindex", "int32",
                         local_ne2000_get_bootindex,
-                        local_ne2000_set_bootindex, NULL, NULL, NULL);
-    object_property_set_int(obj, -1, "bootindex", NULL);
+                        local_ne2000_set_bootindex, NULL, NULL);
+    object_property_set_int(obj, "bootindex", -1, NULL);
 }
+
 static const TypeInfo local_ne2000_info = {
     .name          = TYPE_LOCAL_NE2000,
     .parent        = TYPE_SYS_BUS_DEVICE,
@@ -152,10 +153,10 @@ void ne2000_init(NICInfo *nd, uint32_t base, qemu_irq irq)
     SysBusDevice *s;
 
     qemu_check_nic_model(nd, "ne2000");
-    dev = qdev_create(NULL, TYPE_LOCAL_NE2000);
+    dev = qdev_new(TYPE_LOCAL_NE2000);
     qdev_set_nic_properties(dev, nd);
-    qdev_init_nofail(dev);
     s = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(s, &error_fatal);
     sysbus_mmio_map(s, 0, base);
     sysbus_connect_irq(s, 0, irq);
 }

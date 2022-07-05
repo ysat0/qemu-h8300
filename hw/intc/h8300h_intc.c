@@ -27,6 +27,7 @@
 #include "hw/intc/h8300h_intc.h"
 #include "qemu/error-report.h"
 #include "qemu/bitops.h"
+#include "migration/vmstate.h"
 
 REG8(ISCR, 0)
   FIELD(ISCR, IRQSC, 0, 6)
@@ -100,6 +101,15 @@ static void h8300hintc_set_irq(void *opaque, int n_IRQ, int level)
             atomic_set(&intc->req_irq, -1);
             qemu_set_irq(intc->irq, 0);
         }
+<<<<<<< HEAD
+=======
+        i++;
+    } while (i < 64);
+
+    if (n_IRQ >= 0) {
+        qatomic_set(&intc->req_irq, n_IRQ);
+        qemu_set_irq(intc->irq, (pri(intc, n_IRQ) << 8) | n_IRQ);
+>>>>>>> 6294c712ac (fix for v7.0.0)
     }
 }
 
@@ -110,11 +120,11 @@ static void h8300hintc_ack_irq(void *opaque, int no, int level)
     int n_IRQ;
     int max_pri;
 
-    n_IRQ = atomic_read(&intc->req_irq);
+    n_IRQ = qatomic_read(&intc->req_irq);
     if (n_IRQ < 0) {
         return;
     }
-    atomic_set(&intc->req_irq, -1);
+    qatomic_set(&intc->req_irq, -1);
     intc->req = deposit64(intc->req, n_IRQ, 1, 0);
     if (ext_no(n_IRQ) >= 0) {
         if (extract8(intc->iscr, ext_no(n_IRQ), 1)) {
@@ -151,7 +161,7 @@ static void clear_pend_irq(H8300HINTCState *intc)
         if (extract8(intc->isr, i, 1) == 0 &&
             extract64(intc->req, i + 12, 1)) {
             intc->req = deposit64(intc->req, i + 12, 1, 0);
-            if (atomic_read(&intc->req_irq) == i + 12) {
+            if (qatomic_read(&intc->req_irq) == i + 12) {
                 h8300hintc_ack_irq(intc, i + 12, 0);
             }
         }

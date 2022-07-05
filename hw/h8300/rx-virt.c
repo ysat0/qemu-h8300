@@ -1,5 +1,5 @@
 /*
- * KaneBebe emulation
+ * RX QEMU virtual platform
  *
  * Copyright (c) 2019 Yoshinori Sato
  *
@@ -23,29 +23,18 @@
 #include "hw/hw.h"
 #include "hw/sysbus.h"
 #include "hw/loader.h"
-#include "hw/h8300/h83069.h"
-#include "hw/net/ne2000-local.h"
+#include "hw/rx/rx62n.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/qtest.h"
 #include "sysemu/device_tree.h"
 #include "hw/boards.h"
 
-#define DRAM_BASE 0x00400000
+/* Same address of GDB integrated simulator */
+#define SDRAM_BASE 0x01000000
 
-static void setup_vector(unsigned int base)
+static void rxvirt_init(MachineState *machine)
 {
-    uint32_t rom_vec[64];
-    int i;
-
-    for (i = 0; i < ARRAY_SIZE(rom_vec); i++) {
-        rom_vec[i] = cpu_to_be32(base + i * 4);
-    }
-    rom_add_blob_fixed("vector", rom_vec, sizeof(rom_vec), 0x000000);
-}
-
-static void kanebebe_init(MachineState *machine)
-{
-    H83069State *s = g_new(H83069State, 1);
+    RX62NState *s = g_new(RX62NState, 1);
     MemoryRegion *sysmem = get_system_memory();
     MemoryRegion *sdram = g_new(MemoryRegion, 1);
     const char *kernel_filename = machine->kernel_filename;
@@ -54,29 +43,24 @@ static void kanebebe_init(MachineState *machine)
     int dtb_size;
 
     /* Allocate memory space */
-    memory_region_init_ram(sdram, NULL, "dram", 4 * MiB,
+    memory_region_init_ram(sdram, NULL, "sdram", 16 * MiB,
                            &error_fatal);
-    memory_region_add_subregion(sysmem, DRAM_BASE, sdram);
-
-    if (!kernel_filename) {
-        rom_add_file_fixed(machine->firmware, 0, 0);
-    }
+    memory_region_add_subregion(sysmem, SDRAM_BASE, sdram);
 
     /* Initalize CPU */
-    object_initialize_child(OBJECT(machine), "mcu", &s->cpu, TYPE_H83069);
-    object_property_set_link(OBJECT(&s->cpu), "main-bus", OBJECT(sysmem),
-                             &error_abort);
-    object_property_set_uint(OBJECT(s), "clock-freq", 25000000, &error_abort);
-    object_property_set_uint(OBJECT(s), "console", 1, &error_abort);
-    qdev_realize(DEVICE(&s->cpu), NULL, &error_abort);
-
-    ne2000_init(&nd_table[0], 0x200000, s->irq[17]);
+    object_initialize_child(OBJECT(machine), "mcu", s,
+                            sizeof(RX62NState), TYPE_RX62N,
+                            &error_fatal, NULL);
+    object_property_set_link(OBJECT(s), OBJECT(get_system_memory()),
+                             "memory", &error_abort);
+    object_property_set_bool(OBJECT(s), kernel_filename != NULL,
+                             "load-kernel", &error_abort);
+    object_property_set_bool(OBJECT(s), true, "realized", &error_abort);
 
     /* Load kernel and dtb */
     if (kernel_filename) {
-        h8300_load_image(H8300_CPU(first_cpu), kernel_filename,
-                      DRAM_BASE + 0x280000, 0x180000);
-        setup_vector(0xffff20 - 0x100);
+        rx_load_image(RXCPU(first_cpu), kernel_filename,
+                      SDRAM_BASE + 8 * MiB, 8 * MiB);
         if (dtb_filename) {
             dtb = load_device_tree(dtb_filename, &dtb_size);
             if (dtb == NULL) {
@@ -90,32 +74,32 @@ static void kanebebe_init(MachineState *machine)
                 exit(1);
             }
             rom_add_blob_fixed("dtb", dtb, dtb_size,
-                               DRAM_BASE + 4 * MiB - dtb_size);
-            /* Set dtb address to R0 */
-            H8300_CPU(first_cpu)->env.regs[0] = DRAM_BASE + 4 * MiB - dtb_size;
+                               SDRAM_BASE + 16 * MiB - dtb_size);
+            /* Set dtb address to R1 */
+            RXCPU(first_cpu)->env.regs[1] = 0x02000000 - dtb_size;
         }
     }
 }
 
-static void kanebebe_class_init(ObjectClass *oc, void *data)
+static void rxvirt_class_init(ObjectClass *oc, void *data)
 {
     MachineClass *mc = MACHINE_CLASS(oc);
 
-    mc->desc = "KaneBebe";
-    mc->init = kanebebe_init;
+    mc->desc = "RX QEMU Virtual Target";
+    mc->init = rxvirt_init;
     mc->is_default = 1;
-    mc->default_cpu_type = TYPE_H8300_CPU;
+    mc->default_cpu_type = TYPE_RXCPU;
 }
 
-static const TypeInfo kanebebe_type = {
-    .name = MACHINE_TYPE_NAME("KaneBebe"),
+static const TypeInfo rxvirt_type = {
+    .name = MACHINE_TYPE_NAME("rx-virt"),
     .parent = TYPE_MACHINE,
-    .class_init = kanebebe_class_init,
+    .class_init = rxvirt_class_init,
 };
 
-static void kanebebe_machine_init(void)
+static void rxvirt_machine_init(void)
 {
-    type_register_static(&kanebebe_type);
+    type_register_static(&rxvirt_type);
 }
 
-type_init(kanebebe_machine_init)
+type_init(rxvirt_machine_init)

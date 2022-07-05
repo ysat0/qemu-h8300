@@ -20,9 +20,9 @@
 #include "cpu.h"
 #include "exec/gdbstub.h"
 
-int h8300_cpu_gdb_read_register(CPUState *cs, uint8_t *mem_buf, int n)
+int h8300_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
 {
-    H8300CPU *cpu = H8300CPU(cs);
+    H8300CPU *cpu = H8300_CPU(cs);
     CPUH8300State *env = &cpu->env;
 
     switch (n) {
@@ -38,7 +38,7 @@ int h8300_cpu_gdb_read_register(CPUState *cs, uint8_t *mem_buf, int n)
 
 int h8300_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n)
 {
-    H8300CPU *cpu = H8300CPU(cs);
+    H8300CPU *cpu = H8300_CPU(cs);
     CPUH8300State *env = &cpu->env;
     uint32_t ccr;
     switch (n) {
