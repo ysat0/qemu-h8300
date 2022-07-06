@@ -9,9 +9,14 @@
 
 #include "qemu/osdep.h"
 #include "hw/sysbus.h"
+#include "hw/irq.h"
 #include "net/net.h"
+#include "migration/vmstate.h"
 #include "hw/net/smc91c111.h"
 #include "qemu/log.h"
+#include "sysemu/sysemu.h"
+#include "qapi/error.h"
+#include "qapi/visitor.h"
 /* For crc32 */
 #include <zlib.h>
 
@@ -670,7 +675,7 @@ static void smc91c111_writefn(void *opaque, hwaddr addr,
     }
 }
 
-static int smc91c111_can_receive_nc(NetClientState *nc)
+static bool smc91c111_can_receive_nc(NetClientState *nc)
 {
     smc91c111_state *s = qemu_get_nic_opaque(nc);
 
@@ -802,7 +807,7 @@ static void smc91c111_class_init(ObjectClass *klass, void *data)
     dc->realize = smc91c111_realize;
     dc->reset = smc91c111_reset;
     dc->vmsd = &vmstate_smc91c111;
-    dc->props = smc91c111_properties;
+    device_class_set_props(dc, smc91c111_properties);
 }
 
 static const TypeInfo smc91c111_info = {
@@ -825,10 +830,10 @@ void smc91c111_init(NICInfo *nd, uint32_t base, qemu_irq irq)
     SysBusDevice *s;
 
     qemu_check_nic_model(nd, "smc91c111");
-    dev = qdev_create(NULL, TYPE_SMC91C111);
+    dev = qdev_new(TYPE_SMC91C111);
     qdev_set_nic_properties(dev, nd);
-    qdev_init_nofail(dev);
     s = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(s, &error_fatal);
     sysbus_mmio_map(s, 0, base);
     sysbus_connect_irq(s, 0, irq);
 }
@@ -843,6 +848,7 @@ void smc91c96_init(NICInfo *nd, uint32_t base, qemu_irq irq)
     qdev_set_nic_properties(dev, nd);
     qdev_prop_set_uint32(dev, "chiptype", 1);
     s = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(s, &error_fatal);
     sysbus_mmio_map(s, 0, base);
     sysbus_connect_irq(s, 0, irq);
 }
