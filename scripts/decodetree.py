@@ -207,8 +207,11 @@ class Field:
 
     def str_extract(self):
         global bitop_width
-        s = 's' if self.sign else ''
-        return f'{s}extract{bitop_width}(insn, {self.pos}, {self.len})'
+        if self.pos == 0 and self.len ==0:
+            return f'dummy(insn, {self.pos}, {self.len})'
+        else:
+            s = 's' if self.sign else ''
+            return f'{s}extract{bitop_width}(insn, {self.pos}, {self.len})'
 
     def __eq__(self, other):
         return self.sign == other.sign and self.mask == other.mask

@@ -27,12 +27,13 @@
 #include "hw/char/renesas_sci.h"
 #include "hw/intc/h8s_intc.h"
 
-#define TYPE_H8S2674 "h8s2674"
-#define TYPE_H8S2674_CPU H8300_CPU_TYPE_NAME(TYPE_H8S2674)
+#define TYPE_H8S2674 "h8s2674-mcu"
 #define H8S2674(obj) OBJECT_CHECK(H8S2674State, (obj), TYPE_H8S2674)
 
 typedef struct H8S2674State {
-    SysBusDevice parent_obj;
+    /*< private >*/
+    DeviceState parent_obj;
+    /*< public >*/
 
     H8300CPU cpu;
     RTMRState tmr;

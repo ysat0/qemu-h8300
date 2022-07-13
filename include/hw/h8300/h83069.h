@@ -27,12 +27,13 @@
 #include "hw/char/renesas_sci.h"
 #include "hw/intc/h8300h_intc.h"
 
-#define TYPE_H83069 "h83069"
-#define TYPE_H83069_CPU H8300_CPU_TYPE_NAME(TYPE_H83069)
+#define TYPE_H83069 "h83069-mcu"
 #define H83069(obj) OBJECT_CHECK(H83069State, (obj), TYPE_H83069)
 
 typedef struct H83069State {
-    SysBusDevice parent_obj;
+    /*< private >*/
+    DeviceState parent_obj;
+    /*< public >*/
 
     H8300CPU cpu;
     RTMRState tmr[2];

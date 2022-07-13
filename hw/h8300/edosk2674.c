@@ -112,7 +112,7 @@ static void edosk2674_class_init(ObjectClass *oc, void *data)
     mc->desc = "EDOSK2674";
     mc->init = edosk2674_init;
     mc->is_default = 0;
-    mc->default_cpu_type = TYPE_H8300_CPU;
+    mc->default_cpu_type = TYPE_H8S2674_CPU;
 }
 
 static const TypeInfo edosk2674_type = {

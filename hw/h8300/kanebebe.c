@@ -29,8 +29,30 @@
 #include "sysemu/qtest.h"
 #include "sysemu/device_tree.h"
 #include "hw/boards.h"
+#include "qom/object.h"
 
 #define DRAM_BASE 0x00400000
+#define DRAM_SIZE 4 * MiB
+
+struct KaneBebeMachineClass {
+    /*< private >*/
+    MachineClass parent_class;
+    /*< public >*/
+};
+typedef struct KaneBebeMachineClass KaneBebeMachineClass;
+
+struct KaneBebeMachineState {
+    /*< private >*/
+    MachineState parent_obj;
+    /*< public >*/
+    H83069State mcu;
+};
+typedef struct KaneBebeMachineState KaneBebeMachineState;
+
+#define TYPE_KANEBEBE_MACHINE MACHINE_TYPE_NAME("KaneBebe")
+
+DECLARE_OBJ_CHECKERS(KaneBebeMachineState, KaneBebeMachineClass,
+                     KANEBEBE_MACHINE, TYPE_KANEBEBE_MACHINE)
 
 static void setup_vector(unsigned int base)
 {
@@ -45,32 +67,32 @@ static void setup_vector(unsigned int base)
 
 static void kanebebe_init(MachineState *machine)
 {
-    H83069State *s = g_new(H83069State, 1);
+    KaneBebeMachineState *s = KANEBEBE_MACHINE(machine);
     MemoryRegion *sysmem = get_system_memory();
-    MemoryRegion *sdram = g_new(MemoryRegion, 1);
+    MemoryRegion *dram = g_new(MemoryRegion, 1);
     const char *kernel_filename = machine->kernel_filename;
     const char *dtb_filename = machine->dtb;
     void *dtb = NULL;
     int dtb_size;
 
     /* Allocate memory space */
-    memory_region_init_ram(sdram, NULL, "dram", 4 * MiB,
-                           &error_fatal);
-    memory_region_add_subregion(sysmem, DRAM_BASE, sdram);
+    memory_region_init_ram(dram, NULL, "kanebebe.dram",
+                           DRAM_SIZE, &error_fatal);
+    memory_region_add_subregion(sysmem, DRAM_BASE, dram);
 
     if (!kernel_filename) {
         rom_add_file_fixed(machine->firmware, 0, 0);
     }
 
     /* Initalize CPU */
-    object_initialize_child(OBJECT(machine), "mcu", &s->cpu, TYPE_H83069);
-    object_property_set_link(OBJECT(&s->cpu), "main-bus", OBJECT(sysmem),
+    object_initialize_child(OBJECT(machine), "mcu", &s->mcu, TYPE_H83069);
+    object_property_set_link(OBJECT(&s->mcu), "memory", OBJECT(sysmem),
                              &error_abort);
-    object_property_set_uint(OBJECT(s), "clock-freq", 25000000, &error_abort);
-    object_property_set_uint(OBJECT(s), "console", 1, &error_abort);
-    qdev_realize(DEVICE(&s->cpu), NULL, &error_abort);
+    object_property_set_uint(OBJECT(&s->mcu), "clock-freq", 25000000, &error_abort);
+    object_property_set_uint(OBJECT(&s->mcu), "console", 1, &error_abort);
+    qdev_realize(DEVICE(&s->mcu), NULL, &error_abort);
 
-    ne2000_init(&nd_table[0], 0x200000, s->irq[17]);
+    ne2000_init(&nd_table[0], 0x200000, s->mcu.irq[17]);
 
     /* Load kernel and dtb */
     if (kernel_filename) {
@@ -104,18 +126,17 @@ static void kanebebe_class_init(ObjectClass *oc, void *data)
     mc->desc = "KaneBebe";
     mc->init = kanebebe_init;
     mc->is_default = 1;
-    mc->default_cpu_type = TYPE_H8300_CPU;
+    mc->default_cpu_type = TYPE_H83069_CPU;
 }
 
-static const TypeInfo kanebebe_type = {
-    .name = MACHINE_TYPE_NAME("KaneBebe"),
-    .parent = TYPE_MACHINE,
-    .class_init = kanebebe_class_init,
+static const TypeInfo kanebebe_type[] = {
+    {
+        .name = MACHINE_TYPE_NAME("KaneBebe"),
+        .parent = TYPE_MACHINE,
+        .class_init = kanebebe_class_init,
+        .instance_size = sizeof(KaneBebeMachineState),
+        .class_size = sizeof(KaneBebeMachineClass),
+    }
 };
 
-static void kanebebe_machine_init(void)
-{
-    type_register_static(&kanebebe_type);
-}
-
-type_init(kanebebe_machine_init)
+DEFINE_TYPES(kanebebe_type)

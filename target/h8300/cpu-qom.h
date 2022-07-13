@@ -22,7 +22,10 @@
 #include "hw/core/cpu.h"
 #include "qom/object.h"
 
-#define TYPE_H8300_CPU "h8300cpu"
+#define TYPE_H8300_CPU "h8300-cpu"
+
+#define TYPE_H83069_CPU H8300_CPU_TYPE_NAME("h83069")
+#define TYPE_H8S2674_CPU H8300_CPU_TYPE_NAME("h8s2674")
 
 OBJECT_DECLARE_CPU_TYPE(H8300CPU, H8300CPUClass, H8300_CPU)
 
@@ -40,14 +43,13 @@ OBJECT_DECLARE_CPU_TYPE(H8300CPU, H8300CPUClass, H8300_CPU)
  *
  * A H8300 CPU model.
  */
-typedef struct H8300CPUClass {
+struct H8300CPUClass {
     /*< private >*/
     CPUClass parent_class;
     /*< public >*/
 
     DeviceRealize parent_realize;
-    void (*parent_reset)(DeviceState *dev);
-
-} H8300CPUClass;
+    DeviceReset parent_reset;
+};
 
 #endif

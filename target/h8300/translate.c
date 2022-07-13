@@ -140,12 +140,10 @@ static uint32_t b10_ldst(DisasContext *ctx, int dummy)
     return extract32(cpu_ldub_code(env, addr), 4, 4);
 }
 
-#if 0
 static int dummy(uint32_t insn, int pos, int len)
 {
     return 0;
 }
-#endif
 
 static int adds_imm(DisasContext *ctx, int imm)
 {

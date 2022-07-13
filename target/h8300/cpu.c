@@ -141,6 +141,7 @@ static void h8300_cpu_init(Object *obj)
     H8300CPU *cpu = H8300_CPU(obj);
     CPUH8300State *env = &cpu->env;
 
+    cpu_set_cpustate_pointers(cpu);
     cs->env_ptr = env;
     qdev_init_gpio_in(DEVICE(cpu), h8300_cpu_set_irq, 1);
 }
@@ -213,16 +214,28 @@ static void h8300cpu_class_init(ObjectClass *klass, void *data)
 static const TypeInfo h8300cpu_info = {
     .name = TYPE_H8300_CPU,
     .parent = TYPE_CPU,
-    .instance_size = sizeof(H8300_CPU),
+    .instance_size = sizeof(H8300CPU),
     .instance_init = h8300_cpu_init,
     .abstract = false,
     .class_size = sizeof(H8300CPUClass),
     .class_init = h8300cpu_class_init,
 };
 
+static const TypeInfo h83069_h8300cpu_info = {
+    .name = TYPE_H83069_CPU,
+    .parent = TYPE_H8300_CPU,
+};
+
+static const TypeInfo h8s2674_h8300cpu_info = {
+    .name = TYPE_H8S2674_CPU,
+    .parent = TYPE_H8300_CPU,
+};
+
 static void h8300cpu_register_types(void)
 {
     type_register_static(&h8300cpu_info);
+    type_register_static(&h83069_h8300cpu_info);
+    type_register_static(&h8s2674_h8300cpu_info);
 }
 
 type_init(h8300cpu_register_types)
