@@ -27,8 +27,8 @@ from typing import (
     TypeVar,
 )
 
-from qemu.aqmp import QMPError
-from qemu.aqmp.legacy import QEMUMonitorProtocol
+from qemu.qmp import QMPError
+from qemu.qmp.legacy import QEMUMonitorProtocol
 
 
 class ObjectPropertyInfo:
@@ -140,7 +140,7 @@ class QOMCommand:
         """
         :return: a strongly typed list from the 'qom-list' command.
         """
-        rsp = self.qmp.command('qom-list', path=path)
+        rsp = self.qmp.cmd('qom-list', path=path)
         # qom-list returns List[ObjectPropertyInfo]
         assert isinstance(rsp, list)
         return [ObjectPropertyInfo.make(x) for x in rsp]

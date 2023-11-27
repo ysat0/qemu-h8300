@@ -6,7 +6,7 @@
  */
 
 #ifndef ARM_CPU_PARAM_H
-#define ARM_CPU_PARAM_H 1
+#define ARM_CPU_PARAM_H
 
 #ifdef TARGET_AARCH64
 # define TARGET_LONG_BITS             64
@@ -30,8 +30,7 @@
  */
 # define TARGET_PAGE_BITS_VARY
 # define TARGET_PAGE_BITS_MIN  10
-#endif
 
-#define NB_MMU_MODES 15
+#endif
 
 #endif

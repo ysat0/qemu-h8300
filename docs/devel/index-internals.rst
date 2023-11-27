@@ -5,7 +5,6 @@ Details about QEMU's various subsystems including how to add features to them.
 
 .. toctree::
    :maxdepth: 2
-   :includehidden:
 
    qom
    atomics
@@ -15,7 +14,9 @@ Details about QEMU's various subsystems including how to add features to them.
    migration
    multi-process
    reset
+   s390-cpu-topology
    s390-dasd-ipl
    tracing
    vfio-migration
    writing-monitor-commands
+   virtio-backends

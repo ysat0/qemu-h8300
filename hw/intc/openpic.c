@@ -32,7 +32,6 @@
 
 #include "qemu/osdep.h"
 #include "hw/irq.h"
-#include "hw/ppc/mac.h"
 #include "hw/pci/pci.h"
 #include "hw/ppc/openpic.h"
 #include "hw/ppc/ppc_e500.h"
@@ -611,11 +610,8 @@ static void openpic_gbl_write(void *opaque, hwaddr addr, uint64_t val,
     case 0x10B0:
     case 0x10C0:
     case 0x10D0:
-        {
-            int idx;
-            idx = (addr - 0x10A0) >> 4;
-            write_IRQreg_ivpr(opp, opp->irq_ipi0 + idx, val);
-        }
+        idx = (addr - 0x10A0) >> 4;
+        write_IRQreg_ivpr(opp, opp->irq_ipi0 + idx, val);
         break;
     case 0x10E0: /* SPVE */
         opp->spve = val & opp->vector_mask;
@@ -729,7 +725,7 @@ static void openpic_tmr_set_tmr(OpenPICTimer *tmr, uint32_t val, bool enabled)
 }
 
 /*
- * Returns the currrent tccr value, i.e., timer value (in clocks) with
+ * Returns the current tccr value, i.e., timer value (in clocks) with
  * appropriate TOG.
  */
 static uint64_t openpic_tmr_get_timer(OpenPICTimer *tmr)

@@ -16,10 +16,10 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TARGET_ARCH_ELF_H_
-#define _TARGET_ARCH_ELF_H_
 
-#define ELF_START_MMAP 0x80000000
+#ifndef TARGET_ARCH_ELF_H
+#define TARGET_ARCH_ELF_H
+
 #define ELF_ET_DYN_LOAD_ADDR    0x500000
 
 #define elf_check_arch(x) ((x) == EM_ARM)
@@ -125,4 +125,4 @@ static uint32_t get_elf_hwcap2(void)
 #undef GET_FEATURE
 #undef GET_FEATURE_ID
 
-#endif /* _TARGET_ARCH_ELF_H_ */
+#endif /* TARGET_ARCH_ELF_H */

@@ -16,7 +16,6 @@
 
 #include "qapi/qapi-builtin-types.h"
 #include "qemu/module.h"
-#include "qom/object.h"
 
 struct TypeImpl;
 typedef struct TypeImpl *Type;
@@ -1093,6 +1092,14 @@ void object_property_set_default_bool(ObjectProperty *prop, bool value);
  * Set the property default value.
  */
 void object_property_set_default_str(ObjectProperty *prop, const char *value);
+
+/**
+ * object_property_set_default_list:
+ * @prop: the property to set
+ *
+ * Set the property default value to be an empty list.
+ */
+void object_property_set_default_list(ObjectProperty *prop);
 
 /**
  * object_property_set_default_int:

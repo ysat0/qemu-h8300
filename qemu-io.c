@@ -15,7 +15,8 @@
 #include <termios.h>
 #endif
 
-#include "qemu-common.h"
+#include "qemu/help-texts.h"
+#include "qemu/cutils.h"
 #include "qapi/error.h"
 #include "qemu-io.h"
 #include "qemu/error-report.h"
@@ -474,10 +475,10 @@ static int command_loop(void)
     return last_error;
 }
 
-static void add_user_command(char *optarg)
+static void add_user_command(char *user_cmd)
 {
     cmdline = g_renew(char *, cmdline, ++ncmdline);
-    cmdline[ncmdline-1] = optarg;
+    cmdline[ncmdline - 1] = user_cmd;
 }
 
 static void reenable_tty_echo(void)
@@ -634,7 +635,7 @@ int main(int argc, char **argv)
         exit(1);
     }
     trace_init_file();
-    qemu_set_log(LOG_TRACE);
+    qemu_set_log(LOG_TRACE, &error_fatal);
 
     /* initialize commands */
     qemuio_add_command(&quit_cmd);

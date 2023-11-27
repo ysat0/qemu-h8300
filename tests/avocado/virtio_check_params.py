@@ -22,7 +22,6 @@ import os
 import re
 import logging
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
 from qemu.machine import QEMUMachine
 from avocado_qemu import QemuSystemTest
 from avocado import skip
@@ -44,7 +43,7 @@ VM_DEV_PARAMS = {'virtio-scsi-pci': ['-device', 'virtio-scsi-pci,id=scsi0'],
 class VirtioMaxSegSettingsCheck(QemuSystemTest):
     @staticmethod
     def make_pattern(props):
-        pattern_items = ['{0} = \w+'.format(prop) for prop in props]
+        pattern_items = [r'{0} = \w+'.format(prop) for prop in props]
         return '|'.join(pattern_items)
 
     def query_virtqueue(self, vm, dev_type_name):
@@ -52,8 +51,8 @@ class VirtioMaxSegSettingsCheck(QemuSystemTest):
         error = None
         props = None
 
-        output = vm.command('human-monitor-command',
-                            command_line = 'info qtree')
+        output = vm.cmd('human-monitor-command',
+                        command_line = 'info qtree')
         props_list = DEV_TYPES[dev_type_name].values();
         pattern = self.make_pattern(props_list)
         res = re.findall(pattern, output)
@@ -122,7 +121,7 @@ class VirtioMaxSegSettingsCheck(QemuSystemTest):
         # collect all machine types except 'none', 'isapc', 'microvm'
         with QEMUMachine(self.qemu_bin) as vm:
             vm.launch()
-            machines = [m['name'] for m in vm.command('query-machines')]
+            machines = [m['name'] for m in vm.cmd('query-machines')]
             vm.shutdown()
         machines.remove('none')
         machines.remove('isapc')

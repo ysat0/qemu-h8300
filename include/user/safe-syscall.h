@@ -70,7 +70,7 @@
  * If the host libc is used then the implementation will appear to work
  * most of the time, but there will be a race condition where a
  * signal could arrive just before we make the host syscall inside libc,
- * and then then guest syscall will not correctly be interrupted.
+ * and then the guest syscall will not correctly be interrupted.
  * Instead the implementation of the guest syscall can use the safe_syscall
  * function but otherwise just return the result or errno in the usual
  * way; the main loop code will take care of restarting the syscall
@@ -91,7 +91,7 @@
  *
  * The basic setup is that we make the host syscall via a known
  * section of host native assembly. If a signal occurs, our signal
- * handler checks the interrupted host PC against the addresse of that
+ * handler checks the interrupted host PC against the address of that
  * known section. If the PC is before or at the address of the syscall
  * instruction then we change the PC to point at a "return
  * -QEMU_ERESTARTSYS" code path instead, and then exit the signal handler
@@ -126,8 +126,8 @@
  */
 
 /* The core part of this function is implemented in assembly */
-extern long safe_syscall_base(int *pending, long number, ...);
-extern long safe_syscall_set_errno_tail(int value);
+long safe_syscall_base(int *pending, long number, ...);
+long safe_syscall_set_errno_tail(int value);
 
 /* These are defined by the safe-syscall.inc.S file */
 extern char safe_syscall_start[];

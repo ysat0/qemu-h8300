@@ -16,8 +16,9 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TARGET_OS_SIGINFO_H_
-#define _TARGET_OS_SIGINFO_H_
+
+#ifndef TARGET_OS_SIGINFO_H
+#define TARGET_OS_SIGINFO_H
 
 #define TARGET_NSIG         128
 #define TARGET_NSIG_BPW     (sizeof(uint32_t) * 8)
@@ -71,7 +72,7 @@ typedef struct target_siginfo {
             int32_t _mqd;
         } _mesgp;
 
-        /* SIGPOLL -- Not really genreated in FreeBSD ??? */
+        /* SIGPOLL -- Not really generated in FreeBSD ??? */
         struct {
             int _band;  /* POLL_IN, POLL_OUT, POLL_MSG */
         } _poll;
@@ -155,4 +156,4 @@ struct target_sigevent {
 #define TARGET_FPE_FLTINV   (7) /* Invalid floating point operation. */
 #define TARGET_FPE_FLTSUB   (8) /* Subscript out of range. */
 
-#endif /* !_TARGET_OS_SIGINFO_H_ */
+#endif /* TARGET_OS_SIGINFO_H */

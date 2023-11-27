@@ -1,4 +1,5 @@
 /* HPPA cores and system support chips.  */
+/* Be aware: QEMU and seabios-hppa repositories share this file as-is. */
 
 #ifndef HW_HPPA_HPPA_HARDWARE_H
 #define HW_HPPA_HPPA_HARDWARE_H
@@ -17,7 +18,6 @@
 #define LASI_UART_HPA   0xffd05000
 #define LASI_SCSI_HPA   0xffd06000
 #define LASI_LAN_HPA    0xffd07000
-#define LASI_RTC_HPA    0xffd09000
 #define LASI_LPT_HPA    0xffd02000
 #define LASI_AUDIO_HPA  0xffd04000
 #define LASI_PS2KBD_HPA 0xffd08000
@@ -40,8 +40,8 @@
 
 #define FW_CFG_IO_BASE  0xfffa0000
 
-#define PORT_SERIAL1    (DINO_UART_HPA + 0x800)
-#define PORT_SERIAL2    (LASI_UART_HPA + 0x800)
+#define PORT_SERIAL1    (LASI_UART_HPA + 0x800)
+#define PORT_SERIAL2    (DINO_UART_HPA + 0x800)
 
 #define HPPA_MAX_CPUS   16      /* max. number of SMP CPUs */
 #define CPU_CLOCK_MHZ   250     /* emulate a 250 MHz CPU */

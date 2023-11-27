@@ -139,8 +139,7 @@ driver options if :option:`--image-opts` is specified.
 .. option:: -e, --shared=NUM
 
   Allow up to *NUM* clients to share the device (default
-  ``1``), 0 for unlimited. Safe for readers, but for now,
-  consistency is not guaranteed between multiple writers.
+  ``1``), 0 for unlimited.
 
 .. option:: -t, --persistent
 
@@ -198,7 +197,9 @@ driver options if :option:`--image-opts` is specified.
 
 .. option:: -v, --verbose
 
-  Display extra debugging information.
+  Display extra debugging information. This option also keeps the original
+  *STDERR* stream open if the ``qemu-nbd`` process is daemonized due to
+  other options like :option:`--fork` or :option:`-c`.
 
 .. option:: -h, --help
 
@@ -226,7 +227,7 @@ disconnects:
   qemu-nbd -f qcow2 file.qcow2
 
 Start a long-running server listening with encryption on port 10810,
-and whitelist clients with a specific X.509 certificate to connect to
+and allow clients with a specific X.509 certificate to connect to
 a 1 megabyte subset of a raw file, using the export name 'subset':
 
 ::

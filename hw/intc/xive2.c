@@ -269,6 +269,7 @@ uint64_t xive2_tm_pull_os_ctx(XivePresenter *xptr, XiveTCTX *tctx,
         xive2_tctx_save_os_ctx(xrtr, tctx, nvp_blk, nvp_idx);
     }
 
+    xive_tctx_reset_os_signal(tctx);
     return qw1w2;
 }
 
@@ -316,7 +317,6 @@ static void xive2_tctx_need_resend(Xive2Router *xrtr, XiveTCTX *tctx,
 {
     Xive2Nvp nvp;
     uint8_t ipb;
-    uint8_t cppr = 0;
 
     /*
      * Grab the associated thread interrupt context registers in the
@@ -337,7 +337,7 @@ static void xive2_tctx_need_resend(Xive2Router *xrtr, XiveTCTX *tctx,
     /* Automatically restore thread context registers */
     if (xive2_router_get_config(xrtr) & XIVE2_VP_SAVE_RESTORE &&
         do_restore) {
-        cppr = xive2_tctx_restore_os_ctx(xrtr, tctx, nvp_blk, nvp_idx, &nvp);
+        xive2_tctx_restore_os_ctx(xrtr, tctx, nvp_blk, nvp_idx, &nvp);
     }
 
     ipb = xive_get_field32(NVP2_W2_IPB, nvp.w2);
@@ -345,11 +345,15 @@ static void xive2_tctx_need_resend(Xive2Router *xrtr, XiveTCTX *tctx,
         nvp.w2 = xive_set_field32(NVP2_W2_IPB, nvp.w2, 0);
         xive2_router_write_nvp(xrtr, nvp_blk, nvp_idx, &nvp, 2);
     }
-
-    /* An IPB or CPPR change can trigger a resend */
-    if (ipb || cppr) {
-        xive_tctx_ipb_update(tctx, TM_QW1_OS, ipb);
-    }
+    /*
+     * Always call xive_tctx_ipb_update(). Even if there were no
+     * escalation triggered, there could be a pending interrupt which
+     * was saved when the context was pulled and that we need to take
+     * into account by recalculating the PIPR (which is not
+     * saved/restored).
+     * It will also raise the External interrupt signal if needed.
+     */
+    xive_tctx_ipb_update(tctx, TM_QW1_OS, ipb);
 }
 
 /*
@@ -538,7 +542,7 @@ static void xive2_router_realize(DeviceState *dev, Error **errp)
 
 /*
  * Notification using the END ESe/ESn bit (Event State Buffer for
- * escalation and notification). Profide futher coalescing in the
+ * escalation and notification). Profide further coalescing in the
  * Router.
  */
 static bool xive2_router_end_es_notify(Xive2Router *xrtr, uint8_t end_blk,
@@ -617,7 +621,7 @@ static void xive2_router_end_notify(Xive2Router *xrtr, uint8_t end_blk,
 
     /*
      * Check the END ESn (Event State Buffer for notification) for
-     * even futher coalescing in the Router
+     * even further coalescing in the Router
      */
     if (!xive2_end_is_notify(&end)) {
         /* ESn[Q]=1 : end of notification */
@@ -698,7 +702,7 @@ do_escalation:
 
     /*
      * Check the END ESe (Event State Buffer for escalation) for even
-     * futher coalescing in the Router
+     * further coalescing in the Router
      */
     if (!xive2_end_is_uncond_escalation(&end)) {
         /* ESe[Q]=1 : end of escalation notification */
@@ -950,11 +954,11 @@ static const MemoryRegionOps xive2_end_source_ops = {
     .write = xive2_end_source_write,
     .endianness = DEVICE_BIG_ENDIAN,
     .valid = {
-        .min_access_size = 8,
+        .min_access_size = 1,
         .max_access_size = 8,
     },
     .impl = {
-        .min_access_size = 8,
+        .min_access_size = 1,
         .max_access_size = 8,
     },
 };
