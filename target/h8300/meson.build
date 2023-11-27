@@ -13,4 +13,4 @@ h8300_ss.add(files(
   'disas.c'))
 
 target_arch += {'h8300': h8300_ss}
-target_softmmu_arch += {'h8300': ss.source_set() }
+target_system_arch += {'h8300': ss.source_set() }

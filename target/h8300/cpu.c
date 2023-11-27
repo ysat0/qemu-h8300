@@ -20,11 +20,11 @@
 #include "qemu/qemu-print.h"
 #include "qapi/error.h"
 #include "cpu.h"
-#include "qemu-common.h"
 #include "migration/vmstate.h"
 #include "exec/exec-all.h"
 #include "hw/loader.h"
 #include "fpu/softfloat.h"
+#include "tcg/debug-assert.h"
 
 static void h8300_cpu_set_pc(CPUState *cs, vaddr value)
 {
@@ -46,14 +46,16 @@ static bool h8300_cpu_has_work(CPUState *cs)
     return cs->interrupt_request & CPU_INTERRUPT_HARD;
 }
 
-static void h8300_cpu_reset(DeviceState *dev)
+static void h8300_cpu_reset_hold(Object *obj)
 {
-    H8300CPU *cpu = H8300_CPU(dev);
+    H8300CPU *cpu = H8300_CPU(obj);
     H8300CPUClass *rcc = H8300_CPU_GET_CLASS(cpu);
     CPUH8300State *env = &cpu->env;
     uint32_t *resetvec;
 
-    rcc->parent_reset(dev);
+    if (rcc->parent_phases.hold) {
+        rcc->parent_phases.hold(obj);
+    }
 
     memset(env, 0, offsetof(CPUH8300State, end_reset_fields));
 
@@ -137,12 +139,8 @@ static void h8300_cpu_disas_set_info(CPUState *cpu, disassemble_info *info)
 
 static void h8300_cpu_init(Object *obj)
 {
-    CPUState *cs = CPU(obj);
     H8300CPU *cpu = H8300_CPU(obj);
-    CPUH8300State *env = &cpu->env;
 
-    cpu_set_cpustate_pointers(cpu);
-    cs->env_ptr = env;
     qdev_init_gpio_in(DEVICE(cpu), h8300_cpu_set_irq, 1);
 }
 
@@ -189,12 +187,12 @@ static void h8300cpu_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
     CPUClass *cc = CPU_CLASS(klass);
     H8300CPUClass *rcc = H8300_CPU_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
     device_class_set_parent_realize(dc, h8300_cpu_realize,
                                     &rcc->parent_realize);
-
-    device_class_set_parent_reset(dc, h8300_cpu_reset,
-                                  &rcc->parent_reset);
+    resettable_class_set_parent_phases(rc, NULL, h8300_cpu_reset_hold, NULL,
+                                       &rcc->parent_phases);
 
     cc->class_by_name = h8300_cpu_class_by_name;
     cc->has_work = h8300_cpu_has_work;

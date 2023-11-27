@@ -24,6 +24,7 @@
 #include "exec/helper-proto.h"
 #include "exec/cpu_ldst.h"
 #include "fpu/softfloat.h"
+#include "tcg/debug-assert.h"
 
 void helper_set_ccr(CPUH8300State *env, uint32_t reg, uint32_t ccr)
 {
@@ -173,7 +174,7 @@ void helper_eepmovw(CPUH8300State *env)
 }
 
 /* exception */
-static inline void QEMU_NORETURN raise_exception(CPUH8300State *env, int index,
+static inline void G_NORETURN raise_exception(CPUH8300State *env, int index,
                                                  uintptr_t retaddr)
 {
     CPUState *cs = env_cpu(env);
@@ -182,7 +183,7 @@ static inline void QEMU_NORETURN raise_exception(CPUH8300State *env, int index,
     cpu_loop_exit_restore(cs, retaddr);
 }
 
-void QEMU_NORETURN helper_sleep(CPUH8300State *env)
+void G_NORETURN helper_sleep(CPUH8300State *env)
 {
     CPUState *cs = env_cpu(env);
 
@@ -191,7 +192,7 @@ void QEMU_NORETURN helper_sleep(CPUH8300State *env)
     raise_exception(env, EXCP_HLT, 0);
 }
 
-void QEMU_NORETURN helper_debug(CPUH8300State *env)
+void G_NORETURN helper_debug(CPUH8300State *env)
 {
     CPUState *cs = env_cpu(env);
 
@@ -199,7 +200,7 @@ void QEMU_NORETURN helper_debug(CPUH8300State *env)
     cpu_loop_exit(cs);
 }
 
-void QEMU_NORETURN helper_trapa(CPUH8300State *env, uint32_t vec)
+void G_NORETURN helper_trapa(CPUH8300State *env, uint32_t vec)
 {
     raise_exception(env, vec + 8, 0);
 }

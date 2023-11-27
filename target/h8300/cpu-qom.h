@@ -20,7 +20,6 @@
 #define H8300_CPU_QOM_H
 
 #include "hw/core/cpu.h"
-#include "qom/object.h"
 
 #define TYPE_H8300_CPU "h8300-cpu"
 
@@ -29,27 +28,7 @@
 
 OBJECT_DECLARE_CPU_TYPE(H8300CPU, H8300CPUClass, H8300_CPU)
 
-/*
- * H8300CPUClass:
- * @parent_realize: The parent class' realize handler.
- * @parent_reset: The parent class' reset handler.
- *
- * A H8300 CPU model.
- */
-/*
- * H8300CPUClass:
- * @parent_realize: The parent class' realize handler.
- * @parent_reset: The parent class' reset handler.
- *
- * A H8300 CPU model.
- */
-struct H8300CPUClass {
-    /*< private >*/
-    CPUClass parent_class;
-    /*< public >*/
-
-    DeviceRealize parent_realize;
-    DeviceReset parent_reset;
-};
+#define H8300_CPU_TYPE_SUFFIX "-" TYPE_H8300_CPU
+#define H8300_CPU_TYPE_NAME(model) model H8300_CPU_TYPE_SUFFIX
 
 #endif

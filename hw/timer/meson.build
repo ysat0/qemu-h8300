@@ -39,5 +39,5 @@ system_ss.add(when: 'CONFIG_SIFIVE_PWM', if_true: files('sifive_pwm.c'))
 
 specific_ss.add(when: 'CONFIG_AVR_TIMER16', if_true: files('avr_timer16.c'))
 
-softmmu_ss.add(when: 'CONFIG_RENESAS_TMR16', if_true: files('renesas_16timer.c'))
-softmmu_ss.add(when: 'CONFIG_RENESAS_TPU', if_true: files('renesas_tpu.c'))
+system_ss.add(when: 'CONFIG_RENESAS_TMR16', if_true: files('renesas_16timer.c'))
+system_ss.add(when: 'CONFIG_RENESAS_TPU', if_true: files('renesas_tpu.c'))

@@ -20,7 +20,6 @@
 #define H8300_CPU_H
 
 #include "qemu/bitops.h"
-#include "qemu-common.h"
 #include "hw/registerfields.h"
 #include "cpu-qom.h"
 
@@ -105,23 +104,23 @@ struct ArchCPU {
     CPUState parent_obj;
     /*< public >*/
 
-    CPUNegativeOffsetState neg;
     CPUH8300State env;
 };
 
-#if 0
-static inline H8300CPU *h8300_env_get_cpu(CPUH8300State *env)
-{
-    return container_of(env, H8300CPU, env);
-}
+/*
+ * H8300CPUClass:
+ * @parent_realize: The parent class' realize handler.
+ * @parent_phases: The parent class' reset phase handlers.
+ *
+ * A H8300 CPU model.
+ */
+struct H8300CPUClass {
+    CPUClass parent_class;
 
-#define ENV_GET_CPU(e) CPU(h8300_env_get_cpu(e))
+    DeviceRealize parent_realize;
+    ResettablePhases parent_phases;
+};
 
-#define ENV_OFFSET offsetof(H8300CPU, env)
-#endif
-
-#define H8300_CPU_TYPE_SUFFIX "-" TYPE_H8300_CPU
-#define H8300_CPU_TYPE_NAME(model) model H8300_CPU_TYPE_SUFFIX
 #define CPU_RESOLVING_TYPE TYPE_H8300_CPU
 
 void h8300_cpu_do_interrupt(CPUState *cpu);
@@ -151,8 +150,8 @@ void h8300_cpu_setim(int im);
 
 #define H8300_CPU_IRQ 0
 
-static inline void cpu_get_tb_cpu_state(CPUH8300State *env, target_ulong *pc,
-                                        target_ulong *cs_base, uint32_t *flags)
+static inline void cpu_get_tb_cpu_state(CPUH8300State *env, vaddr *pc,
+                                        uint64_t *cs_base, uint32_t *flags)
 {
     *pc = env->pc;
     *cs_base = 0;

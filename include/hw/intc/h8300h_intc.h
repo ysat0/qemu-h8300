@@ -1,7 +1,6 @@
 #ifndef H8300_INTC_H
 #define H8300_INTC_H
 
-#include "qemu-common.h"
 #include "hw/irq.h"
 
 enum {

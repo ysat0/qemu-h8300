@@ -71,5 +71,6 @@ system_ss.add(when: 'CONFIG_ROCKER', if_true: files(
 ), if_false: files('rocker/qmp-norocker.c'))
 system_ss.add(when: 'CONFIG_ALL', if_true: files('rocker/qmp-norocker.c'))
 system_ss.add(files('rocker/rocker-hmp-cmds.c'))
+system_ss.add(when: 'CONFIG_NE2000_LOCAL', if_true: files('ne2000-local.c'))
 
 subdir('can')

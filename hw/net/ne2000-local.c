@@ -70,7 +70,8 @@ static void local_ne2000_realizefn(DeviceState *dev, Error **errp)
     ne2000_reset(ne);
 
     ne->nic = qemu_new_nic(&net_ne2000_local_info, &ne->c,
-                          object_get_typename(OBJECT(dev)), dev->id, ne);
+                           object_get_typename(OBJECT(dev)), dev->id,
+                           &dev->mem_reentrancy_guard, ne);
     qemu_format_nic_info_str(qemu_get_queue(ne->nic), ne->c.macaddr.a);
 }
 

@@ -100,6 +100,8 @@ bool h8300_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
     case 2:
         pri = (env->exr_i | env->ccr_i << 3) + 1;
         break;
+    default:
+        pri = 15;
     }
     if ((interrupt_request & CPU_INTERRUPT_HARD) &&
         pri <= env->req_pri) {

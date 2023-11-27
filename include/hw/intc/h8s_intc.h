@@ -1,7 +1,6 @@
 #ifndef H8S_INTC_H
 #define H8S_INTC_H
 
-#include "qemu-common.h"
 #include "hw/irq.h"
 enum {
     NR_IRQS = 128,
